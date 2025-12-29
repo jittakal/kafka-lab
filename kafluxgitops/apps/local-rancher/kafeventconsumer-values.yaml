@@ -3,5 +3,5 @@
 ---
 replicaCount: 1
 image:
-  repository: jittakal/kafeventconsumer
+  repository: jittakal/image-kafeventconsumer
   tag: "1.0.0"

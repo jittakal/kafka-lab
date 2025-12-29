@@ -3,5 +3,5 @@
 ---
 replicaCount: 1
 image:
-  repository: jittakal/kafeventproducer
+  repository: jittakal/image-kafeventproducer
   tag: "1.0.0"
