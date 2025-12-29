@@ -20,6 +20,8 @@ spec:
   uninstall:
     keepHistory: false
   values:
+    global:
+      namespace: kafka
     replicaCount: 1
     resources:
       limits:
