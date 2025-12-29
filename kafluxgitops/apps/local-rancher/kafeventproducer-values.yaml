@@ -1,7 +1,7 @@
 # Local Rancher Desktop environment overrides
 # These values override apps/base/kafeventproducer/values.yaml
 ---
-replicaCount: 1
+replicaCount: 0
 image:
   repository: jittakal/image-kafeventproducer
   tag: "1.0.0"
