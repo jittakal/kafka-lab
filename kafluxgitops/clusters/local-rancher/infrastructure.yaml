@@ -9,7 +9,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./infrastructure/sources
+  path: ./kafluxgitops/infrastructure/sources
   prune: true
   wait: true
 ---
@@ -25,7 +25,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./infrastructure/configs
+  path: ./kafluxgitops/infrastructure/configs
   prune: true
   wait: true
 ---
@@ -41,7 +41,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./infrastructure/controllers
+  path: ./kafluxgitops/infrastructure/controllers
   prune: true
   wait: true
   timeout: 15m0s

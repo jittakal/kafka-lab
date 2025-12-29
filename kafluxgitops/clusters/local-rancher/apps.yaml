@@ -11,7 +11,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./apps/local-rancher
+  path: ./kafluxgitops/apps/local-rancher
   prune: true
   wait: true
   timeout: 10m0s
