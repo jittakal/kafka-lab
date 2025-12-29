@@ -1,7 +1,15 @@
-# Local Rancher Desktop environment overrides
-# These values override apps/base/kafeventconsumer/values.yaml
 ---
-replicaCount: 0
-image:
-  repository: jittakal/image-kafeventconsumer
-  tag: "1.0.0"
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kafeventconsumer
+  namespace: kafka-consumers
+spec:
+  values:
+    replicaCount: 1
+    image:
+      repository: jittakal/image-kafeventconsumer
+      tag: "1.0.0"
+    kafka:
+      brokers:
+        - "kafka-kraft-hs.kafka.svc.cluster.local:9093"

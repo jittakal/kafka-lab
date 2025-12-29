@@ -10,9 +10,9 @@ Based on the official [flux2-kustomize-helm-example](https://github.com/fluxcd/f
 │   ├── base
 │   └── local-rancher
 ├── infrastructure
-│   ├── sources
 │   ├── configs
-│   └── controllers
+│   ├── controllers
+│   └── platforms
 └── clusters
     └── local-rancher
         └── flux-system
@@ -23,29 +23,100 @@ Based on the official [flux2-kustomize-helm-example](https://github.com/fluxcd/f
 ./
 ├── apps/
 │   ├── base/                      # Base application configurations
-│   │   ├── kafeventconsumer/
-│   │   └── kafeventproducer/
-│   └── local-rancher/             # Local environment overrides
+│   │   ├── kafeventconsumer/      # Self-contained app with OCIRepository
+│   │   │   ├── namespace.yaml
+│   │   │   ├── repository.yaml    # OCIRepository definition
+│   │   │   ├── release.yaml       # HelmRelease with inline values
+│   │   │   └── kustomization.yaml
+│   │   └── kafeventproducer/      # Self-contained app with OCIRepository
+│   │       ├── namespace.yaml
+│   │       ├── repository.yaml
+│   │       ├── release.yaml
+│   │       └── kustomization.yaml
+│   └── local-rancher/             # Environment-specific overlays
+│       ├── kustomization.yaml     # Kustomize patches
+│       ├── kafeventconsumer-values.yaml
+│       └── kafeventproducer-values.yaml
 ├── infrastructure/
-│   ├── sources/                   # HelmRepository sources
-│   ├── configs/                   # Common configs (namespaces, etc.)
-│   └── controllers/               # Infrastructure controllers (Kafka)
+│   ├── configs/                   # Common configurations
+│   │   └── kustomization.yaml
+│   ├── controllers/               # Infrastructure controllers
+│   │   ├── cert-manager.yaml      # OCIRepository reference
+│   │   └── kustomization.yaml
+│   └── platforms/                 # Platform services (Kafka)
+│       ├── kafka/
+│       │   ├── namespace.yaml
+│       │   ├── repository.yaml    # OCIRepository for Kafka
+│       │   ├── release.yaml       # HelmRelease with chartRef
+│       │   └── kustomization.yaml
+│       └── kustomization.yaml
 └── clusters/
     └── local-rancher/             # Cluster-specific Flux configs
         ├── flux-system/
-        ├── infrastructure.yaml
-        └── apps.yaml
+        ├── infrastructure.yaml    # Orchestrates configs → controllers → platforms
+        └── apps.yaml              # Depends on platforms
 ```
 
 ## Components
 
 ### Infrastructure
-- **Namespace**: kafka-lab
-- **Kafka Cluster**: kafka-kraft with KRaft mode and SASL/SSL
+- **Namespaces**: 
+  - `kafka` - Kafka platform service
+  - `kafka-consumers` - Consumer applications
+  - `kafka-producers` - Producer applications
+- **Platform**: Kafka KRaft cluster with SASL/SSL (deployed via OCIRepository)
 
 ### Applications
-- **kafeventconsumer**: Kafka event consumer
-- **kafeventproducer**: Kafka event producer
+- **kafeventconsumer**: Kafka event consumer (self-contained with OCIRepository)
+- **kafeventproducer**: Kafka event producer (self-contained with OCIRepository)
+
+## Key Patterns
+
+### OCIRepository Pattern
+All Helm charts are deployed using OCIRepository (not HelmRepository):
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: kafeventconsumer
+  namespace: kafka-consumers
+spec:
+  interval: 24h
+  url: oci://registry-1.docker.io/jittakal/kafeventconsumer
+  layerSelector:
+    mediaType: "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+    operation: copy
+  ref:
+    semver: "1.x"
+```
+
+### HelmRelease with chartRef
+Using chartRef pattern for cleaner references:
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kafeventconsumer
+  namespace: kafka-consumers
+spec:
+  interval: 10m
+  chartRef:
+    kind: OCIRepository
+    name: kafeventconsumer
+  values:
+    replicaCount: 0
+```
+
+### Kustomize Patches for Overrides
+Environment-specific overrides using Kustomize patches (not ConfigMaps):
+```yaml
+# apps/local-rancher/kustomization.yaml
+patches:
+  - path: kafeventconsumer-values.yaml
+    target:
+      kind: HelmRelease
+      name: kafeventconsumer
+```
 
 ## Prerequisites
 
@@ -94,10 +165,20 @@ flux get helmreleases -A
 
 ## Deployment Order
 
-1. **Infrastructure Sources** - HelmRepository definitions
-2. **Infrastructure Configs** - Namespace creation
-3. **Infrastructure Controllers** - Kafka cluster
-4. **Applications** - Consumer and Producer apps (depends on Kafka)
+1. **Infrastructure Configs** - Common configurations
+2. **Infrastructure Controllers** - Infrastructure controllers (cert-manager)
+3. **Infrastructure Platforms** - Platform services (Kafka KRaft cluster)
+4. **Applications** - Consumer and Producer apps (depends on platforms)
+
+Orchestrated via `clusters/local-rancher/infrastructure.yaml`:
+```yaml
+configs → controllers → platforms
+```
+
+And `clusters/local-rancher/apps.yaml`:
+```yaml
+apps (depends on platforms)
+```
 
 ## Making Changes
 

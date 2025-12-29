@@ -1,12 +1,8 @@
 ---
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: kafka-lab
+namespace: kafka-producers
 resources:
-  - helmrelease.yaml
-configMapGenerator:
-  - name: kafeventproducer-values
-    files:
-      - values.yaml
-generatorOptions:
-  disableNameSuffixHash: true
+  - namespace.yaml
+  - repository.yaml
+  - release.yaml

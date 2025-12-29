@@ -1,0 +1,29 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kafeventconsumer
+  namespace: kafka-consumers
+spec:
+  interval: 10m
+  timeout: 15m
+  dependsOn:
+    - name: kafka-kraft
+      namespace: kafka
+  chartRef:
+    kind: OCIRepository
+    name: kafeventconsumer
+  maxHistory: 2
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  # Default values
+  # https://github.com/jittakal/helm-charts/blob/main/charts/kafeventconsumer/values.yaml
+  values:
+    replicaCount: 0

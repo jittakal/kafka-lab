@@ -1,20 +1,14 @@
 ---
-apiVersion: helm.toolkit.fluxcd.io/v2beta2
+apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: kafka-kraft
-  namespace: kafka-lab
+  namespace: kafka
 spec:
   interval: 30m
-  chart:
-    spec:
-      chart: kafka-kraft-sasl-ssl
-      version: "1.0.0"
-      sourceRef:
-        kind: HelmRepository
-        name: jittakal-oci
-        namespace: flux-system
-      interval: 12h
+  chartRef:
+    kind: OCIRepository
+    name: kafka-kraft
   maxHistory: 2
   install:
     remediation:

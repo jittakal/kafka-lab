@@ -1,0 +1,14 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: kafka-kraft
+  namespace: kafka
+spec:
+  interval: 24h
+  url: oci://registry-1.docker.io/jittakal/kafka-kraft-sasl-ssl
+  layerSelector:
+    mediaType: "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+    operation: copy
+  ref:
+    semver: "1.x"
