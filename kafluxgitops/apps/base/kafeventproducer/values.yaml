@@ -1,5 +1,8 @@
-# Default values for kafeventconsumer
+# Default values for kafeventproducer
 # This file contains the base configuration
-# Override these in apps/local-rancher/kafeventconsumer-values.yaml
+# Override these in apps/local-rancher/kafeventproducer-values.yaml
 ---
 replicaCount: 1
+image:
+  repository: jittakal/kafeventproducer
+  tag: "1.0.0"

@@ -2,3 +2,6 @@
 # These values override apps/base/kafeventconsumer/values.yaml
 ---
 replicaCount: 1
+image:
+  repository: jittakal/kafeventconsumer
+  tag: "1.0.0"
