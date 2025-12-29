@@ -6,6 +6,8 @@ metadata:
   namespace: kafka-producers
 spec:
   values:
+    global:
+      namespace: kafka-producers
     replicaCount: 1
     image:
       repository: jittakal/image-kafeventproducer
