@@ -26,13 +26,11 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    # Add your kafka-kraft base configuration here
-    # Example:
-    # replicaCount: 1
-    # resources:
-    #   limits:
-    #     memory: 2Gi
-    #     cpu: 1000m
-    #   requests:
-    #     memory: 1Gi
-    #     cpu: 500m
+    replicaCount: 1
+    resources:
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+      requests:
+         memory: 1Gi
+         cpu: 500m
