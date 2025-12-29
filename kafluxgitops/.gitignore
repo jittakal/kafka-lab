@@ -1,0 +1,18 @@
+# Secrets
+*.secret.yaml
+secrets/
+*.key
+*.crt
+*.pem
+
+# Editor files
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Temporary files
+tmp/
+temp/

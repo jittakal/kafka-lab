@@ -1,0 +1,4 @@
+# Local Rancher Desktop environment overrides
+# These values override apps/base/kafeventconsumer/values.yaml
+---
+replicaCount: 1

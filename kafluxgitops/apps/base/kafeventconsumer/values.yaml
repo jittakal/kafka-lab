@@ -1,0 +1,5 @@
+# Default values for kafeventconsumer
+# This file contains the base configuration
+# Override these in apps/local-rancher/kafeventconsumer-values.yaml
+---
+replicaCount: 1

@@ -1,0 +1,7 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka-lab
+  labels:
+    toolkit.fluxcd.io/tenant: kafka-lab
