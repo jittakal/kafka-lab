@@ -54,6 +54,18 @@ Based on the official [flux2-kustomize-helm-example](https://github.com/fluxcd/f
 - kubectl configured
 - GitHub personal access token with repo permissions
 
+### GitHub fine-grained PAT
+
+Bootstrap can be run with a GitHub fine-grained personal access token, for repositories that are created ahead of time.
+
+The fine-grained PAT must be generated with the following permissions:
+
+- Administration -> Access: Read-only
+- Contents -> Access: Read and write
+- Metadata -> Access: Read-only
+
+Note: that Administration should be set to Access: Read and write when using bootstrap github --token-auth=false. Have used Read and write
+
 ## Bootstrap
 ```bash
 export GITHUB_TOKEN=<your-token>
