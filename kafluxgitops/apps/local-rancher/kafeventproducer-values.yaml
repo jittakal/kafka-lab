@@ -14,4 +14,4 @@ spec:
       brokers:
         - "kafka-kraft-hs.kafka.svc.cluster.local:9093"
     generator:
-      intervalMs: 5s000
+      intervalMs: 5000
