@@ -1,0 +1,130 @@
+# Values for local Kubernetes deployment
+# Usage: helm install kafka-event-producer ./kafeventproducer/helm/kafeventproducer -f ./kafeventproducer/helm/kafeventproducer/envs/values-local.yaml -n kafka-lab
+
+#############################################
+# Global Configuration
+#############################################
+global:
+  environment: local
+  namespace: kafka-lab
+
+#############################################
+# Deployment Configuration
+#############################################
+replicaCount: 1
+
+image:
+  repository: "kafeventproducer"
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: "kafka-event-producer"
+
+#############################################
+# Kafka Configuration
+#############################################
+kafka:
+  brokers:
+    - "kafka-kraft-hs.kafka-lab.svc.cluster.local:9093"
+  securityProtocol: "SASL_SSL"
+  saslMechanism: "PLAIN"
+  saslUsername: "admin"
+  saslPassword: "admin-secret"
+  
+  tls:
+    enabled: true
+    insecureSkipVerify: true
+  
+  producer:
+    requiredAcks: -1
+    compressionType: "zstd"
+    maxMessageBytes: 1048576
+    idempotentWrites: true
+    retryMax: 3
+    retryBackoffMs: 100
+
+#############################################
+# Topics Configuration
+#############################################
+topics:
+  bookIssued: "library.books.issued"
+  bookReturned: "library.books.returned"
+
+#############################################
+# Generator Configuration
+#############################################
+generator:
+  intervalMs: 1000
+  bookIssued:
+    enabled: true
+    probability: 1.0
+  bookReturned:
+    enabled: true
+    probability: 0.3
+
+#############################################
+# Application Configuration
+#############################################
+logLevel: "info"
+metricsPort: 9090
+
+#############################################
+# Service Configuration
+#############################################
+service:
+  type: ClusterIP
+  port: 9090
+  targetPort: 9090
+  annotations: {}
+
+#############################################
+# Resource Configuration
+#############################################
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+
+#############################################
+# Health Checks
+#############################################
+healthCheck:
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: 9090
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: 9090
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+#############################################
+# Autoscaling
+#############################################
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+#############################################
+# Pod Disruption Budget
+#############################################
+podDisruptionBudget:
+  enabled: false
+
+#############################################
+# Service Monitor (Prometheus)
+#############################################
+serviceMonitor:
+  enabled: false

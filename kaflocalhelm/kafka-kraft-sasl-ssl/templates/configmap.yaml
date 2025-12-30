@@ -1,0 +1,69 @@
+---
+# ConfigMap for Kafka server configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-config
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: configuration
+data:
+  server.properties: |
+    # KRaft Mode Configuration
+    process.roles=broker,controller
+    node.id=${KAFKA_NODE_ID}
+    controller.quorum.voters={{ include "kafka-kraft-sasl-ssl.controller.quorum.voters" . }}
+    
+    # Listeners
+    listeners=CONTROLLER://0.0.0.0:{{ .Values.controller.service.port | int }},SSL-INTERNAL://0.0.0.0:{{ .Values.broker.service.port | int }},SSL://0.0.0.0:{{ .Values.broker.service.hostPort | int }}
+    advertised.listeners=${KAFKA_ADVERTISED_LISTENERS}
+    listener.security.protocol.map=CONTROLLER:PLAINTEXT,SSL-INTERNAL:SASL_SSL,SSL:SASL_SSL
+    controller.listener.names=CONTROLLER
+    inter.broker.listener.name=SSL-INTERNAL
+    
+    # Log Directories
+    log.dirs=/var/lib/kafka/data
+    
+    # Replication
+    offsets.topic.replication.factor={{ .Values.kafka.offsetsTopicReplicationFactor | int }}
+    transaction.state.log.replication.factor={{ .Values.kafka.transactionStateLogReplicationFactor | int }}
+    transaction.state.log.min.isr={{ .Values.kafka.transactionStateLogMinIsr | int }}
+    default.replication.factor={{ .Values.kafka.defaultReplicationFactor | int }}
+    
+    # Partitions
+    num.partitions={{ .Values.kafka.numPartitions | int }}
+    
+    # Topic Configuration
+    auto.create.topics.enable={{ .Values.kafka.autoCreateTopics }}
+    
+    # Log Retention
+    log.retention.hours={{ .Values.kafka.logRetentionHours | int }}
+    log.segment.bytes={{ .Values.kafka.logSegmentBytes | int }}
+    compression.type={{ .Values.kafka.compressionType }}
+    
+    # SSL Configuration
+    ssl.keystore.type=PKCS12
+    ssl.truststore.type=PKCS12
+    ssl.keystore.location=/etc/kafka/secrets/keystore.p12
+    ssl.truststore.location=/etc/kafka/secrets/truststore.p12
+    ssl.keystore.password={{ .Values.certManager.keystorePassword }}
+    ssl.truststore.password={{ .Values.certManager.keystorePassword }}
+    ssl.key.password={{ .Values.certManager.keystorePassword }}
+    ssl.client.auth={{ .Values.security.ssl.clientAuth }}
+    ssl.endpoint.identification.algorithm={{ .Values.security.ssl.endpointIdentificationAlgorithm }}
+    ssl.enabled.protocols={{ .Values.security.ssl.enabledProtocols }}
+    
+    # SASL Configuration
+    sasl.enabled.mechanisms={{ .Values.security.saslMechanism }}
+    sasl.mechanism.inter.broker.protocol={{ .Values.security.saslInterBrokerMechanism }}
+    
+    # Performance Tuning
+    num.network.threads=8
+    num.io.threads=8
+    socket.send.buffer.bytes=102400
+    socket.receive.buffer.bytes=102400
+    socket.request.max.bytes=104857600
+    
+    # Group Coordinator
+    group.initial.rebalance.delay.ms=0

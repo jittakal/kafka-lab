@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kafeventconsumer.fullname" . }}-config
+  labels:
+    {{- include "kafeventconsumer.labels" . | nindent 4 }}
+data:
+  application.yaml: |
+    kafka:
+      brokers:
+        {{- range .Values.kafka.brokers }}
+        - {{ . | quote }}
+        {{- end }}
+      securityProtocol: {{ .Values.kafka.security.protocol | quote }}
+      saslMechanism: {{ .Values.kafka.security.sasl.mechanism | quote }}
+      consumerGroup: {{ .Values.kafka.consumer.groupId | quote }}
+      tls:
+        enabled: {{ .Values.kafka.security.tls.enabled }}
+        insecureSkipVerify: {{ .Values.kafka.security.tls.insecureSkipVerify }}
+      awsMsk:
+        enabled: false
+    
+    topics:
+      bookIssued: {{ index .Values.kafka.topics 0 | quote }}
+      bookReturned: {{ index .Values.kafka.topics 1 | quote }}
+    
+    consumer:
+      offsetInitial: {{ .Values.kafka.consumer.offsetInitial | quote }}
+      sessionTimeoutMs: {{ .Values.kafka.consumer.sessionTimeout }}
+      heartbeatIntervalMs: {{ .Values.kafka.consumer.heartbeatInterval }}
+      maxProcessingTimeMs: {{ .Values.kafka.consumer.maxProcessingTime }}
+      autoCommit: {{ .Values.kafka.consumer.autoCommit }}
+    
+    awsMsk:
+      enabled: {{ .Values.kafka.awsMsk.enabled }}
+      {{- if .Values.kafka.awsMsk.region }}
+      region: {{ .Values.kafka.awsMsk.region | quote }}
+      {{- end }}

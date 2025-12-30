@@ -1,0 +1,18 @@
+apiVersion: v2
+name: kafeventproducerchart
+description: CloudEvents Producer for Kafka - Library Management System
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - kafka
+  - producer
+  - cloudevents
+  - library
+  - events
+home: https://github.com/jittakal/kafka-event-store-lab
+maintainers:
+  - name: Jitendra Takalkar
+    email: jitendra.takalkar@example.com
+icon: https://kafka.apache.org/images/logo.png
+kubeVersion: ">=1.21.0-0"

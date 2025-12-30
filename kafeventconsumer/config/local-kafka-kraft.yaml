@@ -1,0 +1,29 @@
+# Kafka Configuration for local kafka-kraft cluster
+kafka:
+  brokers:
+    - "kafka-kraft-hs.kafka-lab.svc.cluster.local:9093"
+  securityProtocol: "SASL_SSL"
+  saslMechanism: "PLAIN"
+  saslUsername: "admin"
+  saslPassword: "admin-secret"
+  consumerGroup: "kafeventconsumer-group"
+  
+  tls:
+    enabled: true
+    insecureSkipVerify: true
+  
+  awsMsk:
+    enabled: false
+
+# Topic Configuration
+topics:
+  bookIssued: "library.books.issued"
+  bookReturned: "library.books.returned"
+
+# Consumer Configuration
+consumer:
+  offsetInitial: "oldest"  # oldest or newest
+  sessionTimeoutMs: 10000
+  heartbeatIntervalMs: 3000
+  maxProcessingTimeMs: 60000
+  autoCommit: true

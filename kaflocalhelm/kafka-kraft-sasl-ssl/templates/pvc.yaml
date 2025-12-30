@@ -1,0 +1,41 @@
+{{- if .Values.persistence.shared.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-shared-pvc
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.shared.size }}
+{{- end }}
+
+{{- if .Values.persistence.tls.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-tls-pvc
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.tls.size }}
+{{- end }}

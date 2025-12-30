@@ -1,0 +1,49 @@
+apiVersion: v2
+name: kafka-kraft-sasl-ssl
+description: |
+  A Helm chart for deploying Apache Kafka 4.x with KRaft mode and SASL_SSL security.
+  
+  Features:
+  - Apache Kafka 4.x with KRaft mode (no ZooKeeper dependency)
+  - SASL_SSL security with cert-manager integration
+  - StatefulSet for high availability
+  - Configurable for single-node or cluster deployment
+  - Latest cert-manager API support
+  - Comprehensive observability and monitoring
+
+type: application
+
+# This is the chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+# Versions are expected to follow Semantic Versioning (https://semver.org/)
+version: 1.0.0
+
+# This is the version number of the application being deployed.
+# Apache Kafka 4.0.0 (latest stable version)
+appVersion: "4.0.0"
+
+# Keywords for easier discovery
+keywords:
+  - kafka
+  - kraft
+  - sasl
+  - ssl
+  - messaging
+  - streaming
+  - event-driven
+
+# Maintainers
+maintainers:
+  - name: jittakal
+    email: jitendra.takalkar@gmail.com
+
+# Minimum Kubernetes version
+kubeVersion: ">=1.21.0-0"
+
+# Home page
+# home: https://github.com/jittakal/kafka-lab/kaflocalhelm/kafka-kraft-sasl-ssl
+
+# Sources
+sources:
+  - https://kafka.apache.org/
+  - https://github.com/apache/kafka

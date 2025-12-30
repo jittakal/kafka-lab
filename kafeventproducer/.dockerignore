@@ -1,0 +1,11 @@
+.git
+.gitignore
+*.md
+Dockerfile
+.dockerignore
+Makefile
+helm/
+bin/
+*.out
+*.test
+coverage.html

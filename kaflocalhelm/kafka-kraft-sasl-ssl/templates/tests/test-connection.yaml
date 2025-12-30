@@ -1,0 +1,72 @@
+{{- $root := . }}
+{{- $fullname := include "kafka-kraft-sasl-ssl.fullname" . }}
+{{- $namespace := include "kafka-kraft-sasl-ssl.namespace" . }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ $fullname }}-test-connection"
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+spec:
+  restartPolicy: Never
+  containers:
+    - name: kafka-test
+      image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "Testing Kafka connection..."
+          
+          # Wait for Kafka to be ready
+          timeout=300
+          counter=0
+          while [ $counter -lt $timeout ]; do
+            if kafka-broker-api-versions.sh --bootstrap-server {{ $fullname }}-hs.{{ $namespace }}.svc.cluster.local:{{ .Values.broker.service.port }} --command-config /etc/kafka/client/secrets/client.properties 2>/dev/null; then
+              echo "✓ Kafka is ready and accepting connections"
+              break
+            fi
+            counter=$((counter + 10))
+            echo "Waiting for Kafka to be ready... ($counter/$timeout seconds)"
+            sleep 10
+          done
+          
+          if [ $counter -ge $timeout ]; then
+            echo "✗ Timeout waiting for Kafka to be ready"
+            exit 1
+          fi
+          
+          # Test topic creation
+          echo "Creating test topic..."
+          kafka-topics.sh --bootstrap-server {{ $fullname }}-hs.{{ $namespace }}.svc.cluster.local:{{ .Values.broker.service.port }} \
+            --command-config /etc/kafka/client/secrets/client.properties \
+            --create \
+            --topic test-helm-topic \
+            --partitions 3 \
+            --replication-factor {{ .Values.kafka.defaultReplicationFactor }} \
+            --if-not-exists
+          
+          # List topics
+          echo "Listing topics..."
+          kafka-topics.sh --bootstrap-server {{ $fullname }}-hs.{{ $namespace }}.svc.cluster.local:{{ .Values.broker.service.port }} \
+            --command-config /etc/kafka/client/secrets/client.properties \
+            --list
+          
+          echo "✓ All tests passed successfully!"
+      volumeMounts:
+        - name: client-secrets
+          mountPath: /etc/kafka/client/secrets
+          readOnly: true
+  volumes:
+    - name: client-secrets
+      projected:
+        sources:
+          - secret:
+              name: {{ $fullname }}-client-config
+          - secret:
+              name: {{ $fullname }}-client-tls-certificates

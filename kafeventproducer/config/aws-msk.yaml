@@ -1,0 +1,41 @@
+# Kafka Configuration for AWS MSK
+kafka:
+  brokers:
+    - "b-1.mycluster.abc123.kafka.us-east-1.amazonaws.com:9098"
+    - "b-2.mycluster.abc123.kafka.us-east-1.amazonaws.com:9098"
+    - "b-3.mycluster.abc123.kafka.us-east-1.amazonaws.com:9098"
+  securityProtocol: "SASL_SSL"
+  saslMechanism: "AWS_MSK_IAM"
+  
+  tls:
+    enabled: true
+    insecureSkipVerify: false
+  
+  producer:
+    requiredAcks: -1  # Wait for all replicas
+    compressionType: "zstd"
+    maxMessageBytes: 1048576  # 1MB
+    idempotentWrites: true
+    retryMax: 3
+    retryBackoffMs: 100
+  
+  awsMsk:
+    enabled: true
+    region: "us-east-1"
+
+# Topic Configuration
+topics:
+  bookIssued: "library.books.issued"
+  bookReturned: "library.books.returned"
+
+# Event Generator Configuration
+generator:
+  intervalMs: 1000  # Generate events every 1 second
+  
+  bookIssued:
+    enabled: true
+    probability: 1.0  # Always generate
+  
+  bookReturned:
+    enabled: true
+    probability: 0.3  # 30% probability per interval

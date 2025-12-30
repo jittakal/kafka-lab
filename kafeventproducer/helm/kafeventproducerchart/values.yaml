@@ -1,0 +1,123 @@
+# Default values for kafeventproducer
+
+# Global Configuration
+global:
+  environment: dev
+  namespace: kafka-lab
+
+replicaCount: 1
+
+image:
+  repository: "jittakal/kafeventproducer"
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: "kafeventproducer"
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+
+service:
+  type: ClusterIP
+  port: 9090
+  targetPort: 9090
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 9090
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 9090
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Producer configuration
+producer:
+  logLevel: "info"
+  metricsPort: 9090
+
+# Environment-specific configuration
+env: local-kafka-kraft
+
+# Kafka configuration for local-kafka-kraft
+kafka:
+  brokers:
+    - "kafka-kraft-hs.kafka-lab.svc.cluster.local:9093"
+  security:
+    protocol: "SASL_SSL"
+    sasl:
+      mechanism: "PLAIN"
+      username: "admin"
+      password: "admin-secret"
+    tls:
+      enabled: true
+      insecureSkipVerify: true
+  producer:
+    requiredAcks: -1
+    compressionType: "zstd"
+    maxMessageBytes: 1048576
+    idempotentWrites: true
+    retryMax: 3
+    retryBackoffMs: 100
+  awsMsk:
+    enabled: false
+    region: "us-east-1"
+
+# Topics
+topics:
+  bookIssued: "library.books.issued"
+  bookReturned: "library.books.returned"
+
+# Generator configuration
+generator:
+  intervalMs: 5000
+  bookIssued:
+    enabled: true
+    probability: 1.0
+  bookReturned:
+    enabled: true
+    probability: 0.3

@@ -1,0 +1,295 @@
+#############################################
+# Default values for kafka-kraft-sasl-ssl
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+#############################################
+
+#############################################
+# Global Configuration
+#############################################
+global:
+  # Environment: dev, staging, prod
+  environment: dev
+  
+  # Target namespace for deployment
+  namespace: kafka-lab
+
+#############################################
+# Deployment Configuration
+#############################################
+# Number of Kafka replicas (1 for single-node, 3+ for cluster)
+replicaCount: 3
+
+image:
+  repository: "apache/kafka"
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion (4.0.0)
+  tag: "4.0.0"
+
+# Override names
+nameOverride: ""
+fullnameOverride: "kafka-kraft"
+
+#############################################
+# Kafka Configuration
+#############################################
+kafka:
+  # Cluster ID for KRaft mode (must be a valid base64 UUID)
+  # Generate with: kafka-storage.sh random-uuid
+  clusterId: "5L6g3nShT-eMCtK--X86sw"
+  
+  # Auto-create topics
+  autoCreateTopics: true
+  
+  # Default number of partitions
+  numPartitions: 3
+  
+  # Default replication factor (should be <= replicaCount)
+  defaultReplicationFactor: 3
+  
+  # Offsets topic replication factor
+  offsetsTopicReplicationFactor: 3
+  
+  # Transaction state log configuration
+  transactionStateLogMinIsr: 2
+  transactionStateLogReplicationFactor: 3
+  
+  # Share coordinator configuration (Kafka 4.x feature)
+  shareCoordinatorStateTopicReplicationFactor: 3
+  shareCoordinatorStateTopicMinIsr: 2
+  
+  # Log retention settings
+  logRetentionHours: 168  # 7 days
+  logSegmentBytes: 1073741824  # 1 GB
+  
+  # Compression type: none, gzip, snappy, lz4, zstd
+  compressionType: "zstd"
+
+#############################################
+# Network Configuration
+#############################################
+controller:
+  service:
+    type: ClusterIP
+    port: 29092
+
+broker:
+  service:
+    # ClusterIP for internal access
+    type: ClusterIP
+    # Internal broker port (SASL_SSL)
+    port: 9093
+    # Host port for external access (optional)
+    hostPort: 19093
+    # NodePort base (if service type is NodePort)
+    baseNodePort: 30090
+
+#############################################
+# Security Configuration
+#############################################
+security:
+  # SASL mechanism: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512
+  saslMechanism: "PLAIN"
+  
+  # Inter-broker SASL mechanism
+  saslInterBrokerMechanism: "PLAIN"
+  
+  # SSL/TLS configuration
+  ssl:
+    # Enabled protocols
+    enabledProtocols: "TLSv1.2,TLSv1.3"
+    
+    # Client authentication: none, requested, required
+    clientAuth: "required"
+    
+    # Endpoint identification algorithm (set to "" to disable hostname verification)
+    endpointIdentificationAlgorithm: ""
+  
+  # SASL credentials (will be created as secrets)
+  sasl:
+    # Username for Kafka authentication
+    username: "admin"
+    # Password for Kafka authentication (change in production!)
+    password: "admin-secret"
+    
+    # Additional users (optional)
+    users: []
+    # - username: "producer"
+    #   password: "producer-secret"
+    # - username: "consumer"
+    #   password: "consumer-secret"
+
+#############################################
+# Certificate Manager Configuration
+#############################################
+certManager:
+  # Enable cert-manager for SSL certificate generation
+  enabled: true
+  
+  # Certificate duration
+  duration: 87600h  # 10 years
+  
+  # Renew before expiration
+  renewBefore: 720h  # 30 days
+  
+  # Certificate organization
+  organization: "Apache"
+  organizationalUnit: "Kafka"
+  
+  # Keystore and Truststore password
+  keystorePassword: "changeit"
+
+#############################################
+# Persistence Configuration
+#############################################
+persistence:
+  # Enable persistence for Kafka data
+  enabled: true
+  
+  # Storage class for Kafka data
+  storageClass: "local-path"
+  
+  # Access mode
+  accessMode: ReadWriteOnce
+  
+  # Size for Kafka data volume (per replica)
+  size: 5Gi
+  
+  # Shared volume for configuration
+  shared:
+    enabled: true
+    size: 1Gi
+  
+  # TLS certificates storage (if needed)
+  tls:
+    enabled: false
+    size: 1Gi
+
+#############################################
+# Resource Configuration
+#############################################
+resources:
+  requests:
+    memory: "2Gi"
+    cpu: "1000m"
+  limits:
+    memory: "4Gi"
+    cpu: "2000m"
+
+#############################################
+# Pod Configuration
+#############################################
+podAnnotations: {}
+  # Prometheus scraping (if enabled)
+  # prometheus.io/scrape: "true"
+  # prometheus.io/port: "9090"
+  # prometheus.io/path: "/metrics"
+
+podLabels: {}
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+#############################################
+# Service Account Configuration
+#############################################
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: false
+  
+  # Annotations to add to the service account
+  annotations: {}
+  
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+#############################################
+# RBAC Configuration
+#############################################
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: false
+  
+  # Rules for the Role
+  rules: []
+
+#############################################
+# Monitoring Configuration
+#############################################
+monitoring:
+  # Enable JMX exporter for Prometheus
+  jmx:
+    enabled: false
+    port: 9090
+  
+  # Enable Kafka exporter
+  kafkaExporter:
+    enabled: false
+
+#############################################
+# Health Check Configuration
+#############################################
+healthCheck:
+  # Liveness probe
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  
+  # Readiness probe
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+#############################################
+# Advanced Configuration
+#############################################
+# Additional environment variables
+extraEnv: []
+# - name: KAFKA_HEAP_OPTS
+#   value: "-Xmx2G -Xms2G"
+
+# Additional volumes
+extraVolumes: []
+
+# Additional volume mounts
+extraVolumeMounts: []
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Pod Disruption Budget (for production clusters)
+pdb:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1

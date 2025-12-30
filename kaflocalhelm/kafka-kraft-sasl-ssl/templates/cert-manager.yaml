@@ -1,0 +1,166 @@
+{{- if .Values.certManager.enabled }}
+---
+# Self-signed Issuer for creating the CA
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-selfsigned-issuer
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: certificate
+spec:
+  selfSigned: {}
+
+---
+# CA Certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-ca
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: certificate
+spec:
+  isCA: true
+  secretName: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-ca-tls
+  commonName: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-ca
+  subject:
+    organizations:
+      - {{ .Values.certManager.organization | quote }}
+    organizationalUnits:
+      - {{ .Values.certManager.organizationalUnit | quote }}
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS8
+    size: 4096
+  duration: {{ .Values.certManager.duration }}
+  renewBefore: {{ .Values.certManager.renewBefore }}
+  issuerRef:
+    name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-selfsigned-issuer
+    kind: Issuer
+    group: cert-manager.io
+
+---
+# CA Issuer
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-ca-issuer
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: certificate
+spec:
+  ca:
+    secretName: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-ca-tls
+
+---
+# Server Certificate for Kafka brokers
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-server-tls
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: certificate
+spec:
+  secretName: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-tls-certificates
+  duration: {{ .Values.certManager.duration }}
+  renewBefore: {{ .Values.certManager.renewBefore }}
+  commonName: {{ include "kafka-kraft-sasl-ssl.cname" . }}
+  subject:
+    organizations:
+      - {{ .Values.certManager.organization | quote }}
+    organizationalUnits:
+      - {{ .Values.certManager.organizationalUnit | quote }}
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS8
+    size: 4096
+  # Additional output formats for compatibility
+  additionalOutputFormats:
+    - type: CombinedPEM
+  # Keystores for Java applications
+  keystores:
+    pkcs12:
+      create: true
+      passwordSecretRef:
+        name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-keystore-password
+        key: password
+      profile: Modern2023
+    jks:
+      create: true
+      passwordSecretRef:
+        name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-keystore-password
+        key: password
+      alias: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-server
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+    - client auth
+  dnsNames:
+    {{- include "kafka-kraft-sasl-ssl.dnsnames" . | nindent 4 }}
+  issuerRef:
+    name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-ca-issuer
+    kind: Issuer
+    group: cert-manager.io
+
+---
+# Client Certificate for Kafka clients
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-client-tls
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: certificate
+spec:
+  secretName: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-client-tls-certificates
+  duration: {{ .Values.certManager.duration }}
+  renewBefore: {{ .Values.certManager.renewBefore }}
+  commonName: "kafka-client"
+  subject:
+    organizations:
+      - {{ .Values.certManager.organization | quote }}
+    organizationalUnits:
+      - {{ .Values.certManager.organizationalUnit | quote }}
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS8
+    size: 4096
+  # Additional output formats
+  additionalOutputFormats:
+    - type: CombinedPEM
+  # Keystores for Java clients
+  keystores:
+    pkcs12:
+      create: true
+      passwordSecretRef:
+        name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-keystore-password
+        key: password
+      profile: Modern2023
+    jks:
+      create: true
+      passwordSecretRef:
+        name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-keystore-password
+        key: password
+      alias: kafka-client
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+  dnsNames:
+    - localhost
+    - kafka-client
+  issuerRef:
+    name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-ca-issuer
+    kind: Issuer
+    group: cert-manager.io
+{{- end }}

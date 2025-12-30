@@ -1,0 +1,22 @@
+# Ignore binaries and build artifacts
+bin/
+*.exe
+
+# Go
+*.out
+coverage.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Docker
+.dockerignore
+
+# Kubernetes
+*.kubeconfig
+
+# Config
+*.local.yaml
+.env

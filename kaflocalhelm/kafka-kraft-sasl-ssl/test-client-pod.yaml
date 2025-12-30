@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kafka-test-client
+  namespace: kafka-lab
+spec:
+  restartPolicy: Never
+  containers:
+  - name: kafka-client
+    image: apache/kafka:4.0.0
+    command:
+      - sh
+      - -c
+      - |
+        echo "=== Kafka Client Test Pod ==="
+        echo ""
+        echo "Client configuration:"
+        cat /etc/kafka/client/secrets/client.properties
+        echo ""
+        echo "=== Listing topics ==="
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka-kraft-hs.kafka-lab.svc.cluster.local:9093 \
+          --command-config /etc/kafka/client/secrets/client.properties \
+          --list
+        echo ""
+        echo "=== Creating test topic with replication factor 3 ==="
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka-kraft-hs.kafka-lab.svc.cluster.local:9093 \
+          --command-config /etc/kafka/client/secrets/client.properties \
+          --create \
+          --topic test-topic-replicated \
+          --partitions 6 \
+          --replication-factor 3 \
+          --if-not-exists
+        echo ""
+        echo "=== Listing topics again ==="
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka-kraft-hs.kafka-lab.svc.cluster.local:9093 \
+          --command-config /etc/kafka/client/secrets/client.properties \
+          --list
+        echo ""
+        echo "=== Describing test topic ==="
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka-kraft-hs.kafka-lab.svc.cluster.local:9093 \
+          --command-config /etc/kafka/client/secrets/client.properties \
+          --describe \
+          --topic test-topic-replicated
+        echo ""
+        echo "=== Test completed successfully! ==="
+        sleep 10
+    volumeMounts:
+    - name: client-secrets
+      mountPath: /etc/kafka/client/secrets
+      readOnly: true
+  volumes:
+  - name: client-secrets
+    projected:
+      sources:
+      - secret:
+          name: kafka-kraft-client-config
+      - secret:
+          name: kafka-kraft-client-tls-certificates

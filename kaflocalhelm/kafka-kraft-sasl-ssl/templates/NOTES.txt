@@ -1,0 +1,101 @@
+1. Get the Kafka broker addresses:
+
+{{- if eq .Values.broker.service.type "ClusterIP" }}
+
+  Internal access within the cluster:
+  
+    Broker address: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-hs.{{ include "kafka-kraft-sasl-ssl.namespace" . }}.svc.cluster.local:{{ .Values.broker.service.port }}
+    
+    For multiple brokers (if replicaCount > 1):
+    {{- range $i := until (int .Values.replicaCount) }}
+    - {{ include "kafka-kraft-sasl-ssl.fullname" $ }}-{{ $i }}.{{ include "kafka-kraft-sasl-ssl.fullname" $ }}-hs.{{ include "kafka-kraft-sasl-ssl.namespace" $ }}.svc.cluster.local:{{ $.Values.broker.service.port }}
+    {{- end }}
+
+{{- else if eq .Values.broker.service.type "NodePort" }}
+
+  External access via NodePort:
+  
+    NodePort: {{ .Values.broker.service.baseNodePort }}
+    
+    Get the node IP:
+    kubectl get nodes -o wide
+    
+    Connect to: <NODE_IP>:{{ .Values.broker.service.baseNodePort }}
+
+{{- end }}
+
+2. Get the client configuration:
+
+  kubectl get secret {{ include "kafka-kraft-sasl-ssl.fullname" . }}-client-config \
+    -n {{ include "kafka-kraft-sasl-ssl.namespace" . }} \
+    -o jsonpath='{.data.client\.properties}' | base64 -d > client.properties
+
+3. Get the client certificates:
+
+  # Get client keystore
+  kubectl get secret {{ include "kafka-kraft-sasl-ssl.fullname" . }}-client-tls-certificates \
+    -n {{ include "kafka-kraft-sasl-ssl.namespace" . }} \
+    -o jsonpath='{.data.keystore\.p12}' | base64 -d > client-keystore.p12
+  
+  # Get client truststore
+  kubectl get secret {{ include "kafka-kraft-sasl-ssl.fullname" . }}-client-tls-certificates \
+    -n {{ include "kafka-kraft-sasl-ssl.namespace" . }} \
+    -o jsonpath='{.data.truststore\.p12}' | base64 -d > client-truststore.p12
+
+4. Test the connection with a Kafka client:
+
+  # Create a test pod
+  kubectl run kafka-client --rm -it --restart=Never \
+    --image={{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }} \
+    --namespace={{ include "kafka-kraft-sasl-ssl.namespace" . }} \
+    -- bash
+
+  # Inside the pod, list topics
+  kafka-topics.sh --bootstrap-server {{ include "kafka-kraft-sasl-ssl.fullname" . }}-hs.{{ include "kafka-kraft-sasl-ssl.namespace" . }}.svc.cluster.local:{{ .Values.broker.service.port }} \
+    --command-config /etc/kafka/client/secrets/client.properties \
+    --list
+
+5. Create a test topic:
+
+  kafka-topics.sh --bootstrap-server {{ include "kafka-kraft-sasl-ssl.fullname" . }}-hs.{{ include "kafka-kraft-sasl-ssl.namespace" . }}.svc.cluster.local:{{ .Values.broker.service.port }} \
+    --command-config /etc/kafka/client/secrets/client.properties \
+    --create \
+    --topic test-topic \
+    --partitions {{ .Values.kafka.numPartitions }} \
+    --replication-factor {{ .Values.kafka.defaultReplicationFactor }}
+
+6. Produce messages:
+
+  kafka-console-producer.sh --bootstrap-server {{ include "kafka-kraft-sasl-ssl.fullname" . }}-hs.{{ include "kafka-kraft-sasl-ssl.namespace" . }}.svc.cluster.local:{{ .Values.broker.service.port }} \
+    --producer.config /etc/kafka/client/secrets/client.properties \
+    --topic test-topic
+
+7. Consume messages:
+
+  kafka-console-consumer.sh --bootstrap-server {{ include "kafka-kraft-sasl-ssl.fullname" . }}-hs.{{ include "kafka-kraft-sasl-ssl.namespace" . }}.svc.cluster.local:{{ .Values.broker.service.port }} \
+    --consumer.config /etc/kafka/client/secrets/client.properties \
+    --topic test-topic \
+    --from-beginning
+
+8. Check Kafka cluster status:
+
+  kubectl get pods -n {{ include "kafka-kraft-sasl-ssl.namespace" . }} -l app.kubernetes.io/name={{ include "kafka-kraft-sasl-ssl.name" . }}
+  kubectl logs -n {{ include "kafka-kraft-sasl-ssl.namespace" . }} -l app.kubernetes.io/name={{ include "kafka-kraft-sasl-ssl.name" . }} --tail=100
+
+9. Access credentials:
+
+  Username: {{ .Values.security.sasl.username }}
+  Password: {{ .Values.security.sasl.password }}
+  Keystore Password: {{ .Values.certManager.keystorePassword }}
+
+{{ if .Values.certManager.enabled }}
+10. Certificate information:
+
+  CA Certificate: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-ca-tls
+  Server Certificate: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-tls-certificates
+  Client Certificate: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-client-tls-certificates
+{{- end }}
+
+For more information, visit:
+- Kafka Documentation: https://kafka.apache.org/documentation/
+- KRaft Mode: https://kafka.apache.org/documentation/#kraft

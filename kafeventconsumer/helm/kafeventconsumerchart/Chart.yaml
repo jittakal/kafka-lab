@@ -1,0 +1,12 @@
+apiVersion: v2
+name: kafeventconsumerchart
+description: Kafka CloudEvents Consumer
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - kafka
+  - cloudevents
+  - consumer
+maintainers:
+  - name: jittakal

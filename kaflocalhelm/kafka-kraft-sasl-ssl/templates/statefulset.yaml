@@ -1,0 +1,313 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kafka-broker
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kafka-kraft-sasl-ssl.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-hs
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "kafka-kraft-sasl-ssl.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: kafka-broker
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kafka-kraft-sasl-ssl.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: kafka
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: controller
+              containerPort: {{ .Values.controller.service.port }}
+              protocol: TCP
+            - name: broker
+              containerPort: {{ .Values.broker.service.port }}
+              protocol: TCP
+            {{- if .Values.monitoring.jmx.enabled }}
+            - name: jmx
+              containerPort: {{ .Values.monitoring.jmx.port }}
+              protocol: TCP
+            {{- end }}
+          env:
+            # Pod metadata
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            
+            # KRaft configuration
+            - name: CLUSTER_ID
+              value: {{ .Values.kafka.clusterId | quote }}
+            - name: KAFKA_PROCESS_ROLES
+              value: "broker,controller"
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: {{ include "kafka-kraft-sasl-ssl.controller.quorum.voters" . | quote }}
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            
+            # Listener configuration
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,SSL-INTERNAL:SASL_SSL,SSL:SASL_SSL"
+            - name: KAFKA_LISTENERS
+              value: "CONTROLLER://:{{ .Values.controller.service.port }},SSL-INTERNAL://:{{ .Values.broker.service.port }},SSL://:{{ .Values.broker.service.hostPort }}"
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: {{ include "kafka-kraft-sasl-ssl.advertised.listeners" . | quote }}
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: "SSL-INTERNAL"
+            
+            # Replication and partitioning
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: {{ .Values.kafka.offsetsTopicReplicationFactor | quote }}
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+              value: {{ .Values.kafka.transactionStateLogMinIsr | quote }}
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: {{ .Values.kafka.transactionStateLogReplicationFactor | quote }}
+            - name: KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR
+              value: {{ .Values.kafka.shareCoordinatorStateTopicReplicationFactor | quote }}
+            - name: KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR
+              value: {{ .Values.kafka.shareCoordinatorStateTopicMinIsr | quote }}
+            - name: KAFKA_DEFAULT_REPLICATION_FACTOR
+              value: {{ .Values.kafka.defaultReplicationFactor | quote }}
+            - name: KAFKA_NUM_PARTITIONS
+              value: {{ .Values.kafka.numPartitions | quote }}
+            
+            # Topic configuration
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: {{ .Values.kafka.autoCreateTopics | quote }}
+            - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+              value: "0"
+            
+            # Log configuration
+            - name: KAFKA_LOG_DIRS
+              value: "/var/lib/kafka/data"
+            - name: KAFKA_LOG_RETENTION_HOURS
+              value: {{ .Values.kafka.logRetentionHours | quote }}
+            - name: KAFKA_LOG_SEGMENT_BYTES
+              value: {{ .Values.kafka.logSegmentBytes | quote }}
+            - name: KAFKA_COMPRESSION_TYPE
+              value: {{ .Values.kafka.compressionType | quote }}
+            
+            # SSL/TLS configuration
+            - name: KAFKA_SSL_KEYSTORE_TYPE
+              value: "PKCS12"
+            - name: KAFKA_SSL_TRUSTSTORE_TYPE
+              value: "PKCS12"
+            - name: KAFKA_SSL_KEYSTORE_FILENAME
+              value: "keystore.p12"
+            - name: KAFKA_SSL_KEYSTORE_CREDENTIALS
+              value: "keystore.cred"
+            - name: KAFKA_SSL_KEY_CREDENTIALS
+              value: "ssl-key.cred"
+            - name: KAFKA_SSL_TRUSTSTORE_FILENAME
+              value: "truststore.p12"
+            - name: KAFKA_SSL_TRUSTSTORE_CREDENTIALS
+              value: "truststore.cred"
+            - name: KAFKA_SSL_CLIENT_AUTH
+              value: {{ .Values.security.ssl.clientAuth | quote }}
+            - name: KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM
+              value: {{ .Values.security.ssl.endpointIdentificationAlgorithm | quote }}
+            - name: KAFKA_SSL_ENABLED_PROTOCOLS
+              value: {{ .Values.security.ssl.enabledProtocols | quote }}
+            
+            # SASL configuration
+            - name: KAFKA_SASL_ENABLED_MECHANISMS
+              value: {{ .Values.security.saslMechanism | quote }}
+            - name: KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL
+              value: {{ .Values.security.saslInterBrokerMechanism | quote }}
+            - name: KAFKA_OPTS
+              value: "-Djava.security.auth.login.config=/etc/kafka/secrets/kafka-server-jaas.config"
+            
+            # JVM configuration
+            - name: KAFKA_HEAP_OPTS
+              value: {{ include "kafka-kraft-sasl-ssl.jvm.heap" . | quote }}
+            - name: KAFKA_JVM_PERFORMANCE_OPTS
+              value: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:G1HeapRegionSize=16M -XX:MinMetaspaceFreeRatio=50 -XX:MaxMetaspaceFreeRatio=80"
+            
+            {{- if .Values.monitoring.jmx.enabled }}
+            # JMX configuration
+            - name: KAFKA_JMX_OPTS
+              value: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=$(POD_IP) -Dcom.sun.management.jmxremote.port={{ .Values.monitoring.jmx.port }} -Dcom.sun.management.jmxremote.rmi.port={{ .Values.monitoring.jmx.port }}"
+            {{- end }}
+            
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              
+              # Extract the pod index from the POD_NAME environment variable
+              POD_INDEX=$(echo $POD_NAME | awk -F'-' '{print $NF}')
+              
+              # Set the Kafka node ID (1-indexed)
+              export KAFKA_NODE_ID=$((POD_INDEX + 1))
+              
+              echo "Starting Kafka broker with Node ID: $KAFKA_NODE_ID"
+              
+              # Create runtime config directory
+              mkdir -p /tmp/kafka-config
+              
+              # Copy server.properties and substitute KAFKA_NODE_ID and KAFKA_ADVERTISED_LISTENERS
+              sed -e "s/\${KAFKA_NODE_ID}/$KAFKA_NODE_ID/g" \
+                  -e "s|\${KAFKA_ADVERTISED_LISTENERS}|$KAFKA_ADVERTISED_LISTENERS|g" \
+                  /opt/kafka/config/kraft/server.properties > /tmp/kafka-config/server.properties
+              
+              # Verify the configuration
+              echo "Generated server.properties with:"
+              echo "  node.id=$KAFKA_NODE_ID"
+              grep "^node.id=" /tmp/kafka-config/server.properties || echo "  ERROR: node.id not set!"
+              grep "^advertised.listeners=" /tmp/kafka-config/server.properties || echo "  ERROR: advertised.listeners not set!"
+              
+              # Format storage if this is the first start
+              if [ ! -f /var/lib/kafka/data/meta.properties ]; then
+                echo "Formatting Kafka storage..."
+                /opt/kafka/bin/kafka-storage.sh format \
+                  --config /tmp/kafka-config/server.properties \
+                  --cluster-id $CLUSTER_ID \
+                  --ignore-formatted
+              fi
+              
+              # Start Kafka broker
+              exec /opt/kafka/bin/kafka-server-start.sh /tmp/kafka-config/server.properties
+          
+          {{- if .Values.healthCheck.livenessProbe.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: broker
+            initialDelaySeconds: {{ .Values.healthCheck.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.livenessProbe.failureThreshold }}
+          {{- end }}
+          
+          {{- if .Values.healthCheck.readinessProbe.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: broker
+            initialDelaySeconds: {{ .Values.healthCheck.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.readinessProbe.failureThreshold }}
+          {{- end }}
+          
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          
+          volumeMounts:
+            - name: {{ include "kafka-kraft-sasl-ssl.data.volume.name" . }}
+              mountPath: /var/lib/kafka/data
+            - name: {{ include "kafka-kraft-sasl-ssl.config.volume.name" . }}
+              mountPath: /opt/kafka/config/kraft
+              readOnly: true
+            - name: {{ include "kafka-kraft-sasl-ssl.secrets.volume.name" . }}
+              mountPath: /etc/kafka/secrets
+              readOnly: true
+            - name: {{ include "kafka-kraft-sasl-ssl.client.secrets.volume.name" . }}
+              mountPath: /etc/kafka/client/secrets
+              readOnly: true
+            {{- if .Values.persistence.shared.enabled }}
+            - name: {{ include "kafka-kraft-sasl-ssl.shared.data.volume.name" . }}
+              mountPath: /mnt/shared/config
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      
+      volumes:
+        - name: {{ include "kafka-kraft-sasl-ssl.config.volume.name" . }}
+          configMap:
+            name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-config
+        - name: {{ include "kafka-kraft-sasl-ssl.secrets.volume.name" . }}
+          projected:
+            sources:
+              - secret:
+                  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-tls-certificates
+              - secret:
+                  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-tls-credentials
+              - secret:
+                  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-sasl-jaas
+        - name: {{ include "kafka-kraft-sasl-ssl.client.secrets.volume.name" . }}
+          projected:
+            sources:
+              - secret:
+                  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-client-config
+              - secret:
+                  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-client-tls-certificates
+        {{- if .Values.persistence.shared.enabled }}
+        - name: {{ include "kafka-kraft-sasl-ssl.shared.data.volume.name" . }}
+          persistentVolumeClaim:
+            claimName: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-shared-pvc
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ include "kafka-kraft-sasl-ssl.data.volume.name" . }}
+        labels:
+          {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - {{ .Values.persistence.accessMode }}
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}

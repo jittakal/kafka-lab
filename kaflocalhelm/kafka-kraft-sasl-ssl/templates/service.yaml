@@ -1,0 +1,54 @@
+---
+# Headless Service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}-hs
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: headless-service
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: controller
+      port: {{ .Values.controller.service.port }}
+      targetPort: controller
+      protocol: TCP
+    - name: broker
+      port: {{ .Values.broker.service.port }}
+      targetPort: broker
+      protocol: TCP
+    {{- if .Values.monitoring.jmx.enabled }}
+    - name: jmx
+      port: {{ .Values.monitoring.jmx.port }}
+      targetPort: jmx
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "kafka-kraft-sasl-ssl.selectorLabels" . | nindent 4 }}
+
+---
+# External Service for Client Access
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kafka-kraft-sasl-ssl.fullname" . }}
+  namespace: {{ include "kafka-kraft-sasl-ssl.namespace" . }}
+  labels:
+    {{- include "kafka-kraft-sasl-ssl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: external-service
+spec:
+  type: {{ .Values.broker.service.type }}
+  ports:
+    - name: broker
+      port: {{ .Values.broker.service.port }}
+      targetPort: broker
+      protocol: TCP
+      {{- if and (eq .Values.broker.service.type "NodePort") .Values.broker.service.baseNodePort }}
+      nodePort: {{ .Values.broker.service.baseNodePort }}
+      {{- end }}
+  selector:
+    {{- include "kafka-kraft-sasl-ssl.selectorLabels" . | nindent 4 }}

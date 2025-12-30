@@ -1,0 +1,28 @@
+# Kafka Configuration for AWS MSK
+kafka:
+  brokers:
+    - "b-1.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098"
+    - "b-2.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098"
+  securityProtocol: "SASL_SSL"
+  saslMechanism: "AWS_MSK_IAM"
+  consumerGroup: "kafeventconsumer-group"
+  
+  tls:
+    enabled: true
+    insecureSkipVerify: false
+  
+  awsMsk:
+    enabled: true
+    region: "us-east-1"
+
+  consumer:
+    offsetInitial: "oldest"
+    sessionTimeoutMs: 10000
+    heartbeatIntervalMs: 3000
+    maxProcessingTimeMs: 60000
+    autoCommit: true
+
+# Topic Configuration
+topics:
+  bookIssued: "library.books.issued"
+  bookReturned: "library.books.returned"

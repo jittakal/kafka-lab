@@ -49,3 +49,6 @@ secrets/
 # Temporary files
 tmp/
 temp/
+
+# Helm package files
+*.tgz
