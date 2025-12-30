@@ -23,6 +23,14 @@ spec:
     global:
       namespace: kafka
     replicaCount: 1
+    kafka:
+      numPartitions: 1
+      defaultReplicationFactor: 1
+      offsetsTopicReplicationFactor: 1
+      transactionStateLogReplicationFactor: 1
+      transactionStateLogMinIsr: 1
+      sharedCoordinatorTopicReplicationFactor: 1
+      sharedCoodinatorStateTopicMinIsr: 1
     resources:
       limits:
         memory: 2Gi
