@@ -82,7 +82,7 @@ metadata:
   namespace: kafka-consumers
 spec:
   interval: 24h
-  url: oci://registry-1.docker.io/jittakal/kafeventconsumer
+  url: oci://registry-1.docker.io/jittakal/kafeventconsumerchart
   layerSelector:
     mediaType: "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
     operation: copy
