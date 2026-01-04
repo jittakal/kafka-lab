@@ -1,0 +1,532 @@
+# Default values for kafeventstore.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+#############################################
+# Global Configuration
+#############################################
+global:
+  # Cloud provider: local, aws, azure, gcp
+  cloudProvider: local
+  
+  # Environment: dev, staging, prod
+  environment: dev
+  
+  # Image pull secrets for private registries
+  imagePullSecrets: []
+  # - name: regcred
+
+#############################################
+# Deployment Configuration
+#############################################
+replicaCount: 1
+
+image:
+  repository: kafeventstore
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+# Override names
+nameOverride: ""
+fullnameOverride: "kafeventstore"
+
+#############################################
+# Service Account Configuration
+#############################################
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  
+  # Annotations to add to the service account
+  annotations: {}
+    # AWS IAM Role for Service Account (IRSA)
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/kafeventstore-role
+    
+    # Azure Workload Identity
+    # azure.workload.identity/client-id: <client-id>
+    # azure.workload.identity/tenant-id: <tenant-id>
+    
+    # GCP Workload Identity
+    # iam.gke.io/gcp-service-account: kafeventstore@PROJECT_ID.iam.gserviceaccount.com
+  
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+#############################################
+# RBAC Configuration
+#############################################
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: false
+  
+  # Rules for the Role/ClusterRole
+  rules: []
+  # - apiGroups: [""]
+  #   resources: ["secrets", "configmaps"]
+  #   verbs: ["get", "list", "watch"]
+
+#############################################
+# Pod Configuration
+#############################################
+podAnnotations: {}
+  # Prometheus scraping
+  # prometheus.io/scrape: "true"
+  # prometheus.io/port: "9090"
+  # prometheus.io/path: "/metrics"
+
+podLabels: {}
+  # Custom labels for pod selection
+  # app.kubernetes.io/component: consumer
+  # app.kubernetes.io/part-of: event-platform
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+#############################################
+# Application Configuration
+#############################################
+config:
+  # Application name and version
+  application:
+    name: "kafka-event-store"
+    version: "1.0.0"
+    
+  # Log level: debug, info, warn, error
+  logLevel: info
+  
+  # Log format: json, text
+  logFormat: json
+  
+  # Kafka configuration
+  kafka:
+    # Bootstrap servers (comma-separated or array)
+    bootstrapServers: "localhost:9092"
+    
+    # Security protocol: PLAINTEXT, SASL_PLAINTEXT, SASL_SSL, SSL
+    securityProtocol: "SASL_SSL"
+    
+    # SASL mechanism: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, AWS_MSK_IAM
+    saslMechanism: "PLAIN"
+    
+    # Consumer group ID
+    consumerGroupId: "kafeventstore-consumer-group"
+    
+    # Topics to consume (array)
+    topics:
+      - "events"
+    
+    # Auto offset reset: earliest, latest
+    autoOffsetReset: "earliest"
+    
+    # Enable auto commit
+    enableAutoCommit: false
+    
+    # Max poll records
+    maxPollRecords: 1000
+    
+    # Max poll interval (ms)
+    maxPollIntervalMs: 300000
+    
+    # Session timeout (ms)
+    sessionTimeoutMs: 30000
+    
+    # Heartbeat interval (ms)
+    heartbeatIntervalMs: 10000
+    
+    # DLQ configuration
+    dlq:
+      enabled: true
+      topicSuffix: "-dlq"
+      maxRetries: 3
+  
+  # Storage configuration
+  storage:
+    # Backend: s3, azure, gcs, file
+    backend: "file"
+    
+    # Format: parquet, avro
+    format: "parquet"
+    
+    # Compression: snappy, gzip, lz4, zstd (for parquet); gzip (for avro)
+    compression: "snappy"
+    
+    # S3 configuration (for AWS)
+    s3:
+      bucket: "events-bucket"
+      region: "us-east-1"
+      endpoint: ""
+      usePathStyle: false
+      sseEnabled: true
+      sseKmsKeyId: ""
+    
+    # Azure Blob configuration
+    azure:
+      accountName: "eventstorageacct"
+      container: "events"
+      useManagedIdentity: true
+    
+    # GCS configuration
+    gcs:
+      bucket: "events-bucket"
+      projectId: ""
+      # Authentication method: adc, service_account_file, service_account_json
+      authMethod: "adc"
+    
+    # File storage (for local/development)
+    file:
+      basePath: "/data/events"
+  
+  # Buffer configuration
+  buffer:
+    maxSize: 1000
+    maxAge: "60s"
+    maxSizeBytes: 10485760  # 10 MB
+  
+  # Observability configuration
+  observability:
+    metricsEnabled: true
+    metricsPort: 9090
+    healthCheckPort: 8080
+    tracingEnabled: false
+
+#############################################
+# Secret Configuration
+#############################################
+# Secrets for Kafka and storage credentials
+secrets:
+  # Create secrets from values (not recommended for production)
+  create: false
+  
+  # Kafka credentials
+  kafka:
+    # Use existing secret for Kafka credentials
+    existingSecret: ""
+    # Keys in the secret
+    usernameKey: "username"
+    passwordKey: "password"
+    # Values (only if create: true)
+    username: ""
+    password: ""
+  
+  # AWS credentials (if not using IRSA)
+  aws:
+    existingSecret: ""
+    accessKeyIdKey: "access-key-id"
+    secretAccessKeyKey: "secret-access-key"
+    accessKeyId: ""
+    secretAccessKey: ""
+  
+  # Azure credentials (if not using Managed Identity)
+  azure:
+    existingSecret: ""
+    storageAccountKeyKey: "storage-account-key"
+    storageAccountKey: ""
+  
+  # GCS credentials (if not using ADC or Workload Identity)
+  gcs:
+    existingSecret: ""
+    serviceAccountJsonKey: "service-account.json"
+    serviceAccountJson: ""
+
+#############################################
+# Persistent Volume Configuration
+#############################################
+# Persistent volume for local file storage or caching
+persistence:
+  enabled: false
+  
+  # Storage class (leave empty for default)
+  storageClass: ""
+  
+  # Access modes
+  accessModes:
+    - ReadWriteOnce
+  
+  # Size
+  size: 10Gi
+  
+  # Annotations
+  annotations: {}
+  
+  # Selector for existing PV
+  selector: {}
+  
+  # Existing claim
+  existingClaim: ""
+  
+  # Mount path
+  mountPath: /data
+  
+  # Sub path
+  subPath: ""
+
+# Persistent Volume (for local Kubernetes)
+persistentVolume:
+  enabled: false
+  capacity: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  # Local path (for local storage)
+  hostPath:
+    path: /mnt/data/kafeventstore
+    type: DirectoryOrCreate
+
+#############################################
+# Service Configuration
+#############################################
+service:
+  type: ClusterIP
+  
+  # Metrics port
+  metricsPort: 9090
+  metricsTargetPort: 9090
+  metricsName: metrics
+  
+  # Health check port
+  healthPort: 8080
+  healthTargetPort: 8080
+  healthName: health
+  
+  # Annotations
+  annotations: {}
+  
+  # Labels
+  labels: {}
+
+#############################################
+# Resource Configuration
+#############################################
+resources:
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Liveness probe
+livenessProbe:
+  httpGet:
+    path: /health
+    port: health
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# Readiness probe
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: health
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 3
+
+# Startup probe (for slow-starting containers)
+startupProbe:
+  httpGet:
+    path: /health
+    port: health
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 30
+
+#############################################
+# Autoscaling Configuration
+#############################################
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  
+  # Target CPU utilization percentage
+  targetCPUUtilizationPercentage: 80
+  
+  # Target memory utilization percentage
+  targetMemoryUtilizationPercentage: 80
+  
+  # Custom metrics (optional)
+  customMetrics: []
+  # - type: Pods
+  #   pods:
+  #     metric:
+  #       name: kafka_consumer_lag
+  #     target:
+  #       type: AverageValue
+  #       averageValue: "1000"
+
+#############################################
+# Pod Disruption Budget
+#############################################
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+#############################################
+# Node Selection
+#############################################
+# Node selector for pod assignment
+nodeSelector: {}
+  # kubernetes.io/os: linux
+  # node-role: worker
+
+# Tolerations for pod assignment
+tolerations: []
+  # - key: "key"
+  #   operator: "Equal"
+  #   value: "value"
+  #   effect: "NoSchedule"
+
+# Affinity rules
+affinity: {}
+  # podAntiAffinity:
+  #   preferredDuringSchedulingIgnoredDuringExecution:
+  #   - weight: 100
+  #     podAffinityTerm:
+  #       labelSelector:
+  #         matchExpressions:
+  #         - key: app.kubernetes.io/name
+  #           operator: In
+  #           values:
+  #           - kafeventstore
+  #       topologyKey: kubernetes.io/hostname
+
+# Priority class name
+priorityClassName: ""
+
+#############################################
+# Volume Mounts Configuration
+#############################################
+# Additional volume mounts
+volumeMounts: []
+  # - name: config
+  #   mountPath: /config
+  #   readOnly: true
+
+# Additional volumes
+volumes: []
+  # - name: config
+  #   configMap:
+  #     name: kafeventstore-config
+
+#############################################
+# ConfigMap Configuration
+#############################################
+configMap:
+  # Create ConfigMap from values
+  create: true
+  
+  # Use existing ConfigMap
+  existingConfigMap: ""
+  
+  # Mount path for application config
+  mountPath: /config
+  
+  # Config file name
+  fileName: application.yaml
+
+#############################################
+# Init Containers
+#############################################
+initContainers: []
+  # - name: wait-for-kafka
+  #   image: busybox:1.36
+  #   command: ['sh', '-c', 'until nc -z kafka-service 9092; do echo waiting for kafka; sleep 2; done']
+
+#############################################
+# Sidecar Containers
+#############################################
+sidecars: []
+  # - name: log-forwarder
+  #   image: fluent/fluent-bit:2.0
+  #   volumeMounts:
+  #   - name: logs
+  #     mountPath: /logs
+
+#############################################
+# Environment Variables
+#############################################
+# Additional environment variables
+env: []
+  # - name: CUSTOM_VAR
+  #   value: "custom-value"
+
+# Environment variables from ConfigMap
+envFrom: []
+  # - configMapRef:
+  #     name: app-config
+
+#############################################
+# ServiceMonitor (Prometheus Operator)
+#############################################
+serviceMonitor:
+  enabled: false
+  
+  # Namespace for ServiceMonitor
+  namespace: ""
+  
+  # Interval at which metrics should be scraped
+  interval: 30s
+  
+  # Timeout for scraping
+  scrapeTimeout: 10s
+  
+  # Additional labels
+  labels: {}
+  
+  # Relabelings
+  relabelings: []
+  
+  # Metric relabelings
+  metricRelabelings: []
+
+#############################################
+# Network Policy
+#############################################
+networkPolicy:
+  enabled: false
+  
+  # Ingress rules
+  ingress: []
+  # - from:
+  #   - namespaceSelector:
+  #       matchLabels:
+  #         name: prometheus
+  #   ports:
+  #   - protocol: TCP
+  #     port: 9090
+  
+  # Egress rules
+  egress: []
+  # - to:
+  #   - namespaceSelector: {}
+  #   ports:
+  #   - protocol: TCP
+  #     port: 9092  # Kafka

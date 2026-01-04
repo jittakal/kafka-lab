@@ -1,0 +1,154 @@
+{{- if .Values.configMap.create -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kafeventstore.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kafeventstore.labels" . | nindent 4 }}
+data:
+  {{ .Values.configMap.fileName }}: |
+    application:
+      name: {{ .Values.config.application.name | quote }}
+      version: {{ .Values.config.application.version | quote }}
+      environment: {{ .Values.global.environment | quote }}
+
+    observability:
+      logging:
+        level: {{ .Values.config.logLevel | quote }}
+        format: {{ .Values.config.logFormat | quote }}
+        output: stdout
+      metrics:
+        enabled: {{ .Values.config.observability.metricsEnabled }}
+        port: {{ .Values.config.observability.metricsPort }}
+        path: {{ .Values.config.observability.metricsPath | default "/metrics" | quote }}
+      {{- if .Values.config.observability.tracingEnabled }}
+      tracing:
+        enabled: {{ .Values.config.observability.tracingEnabled }}
+        exporter: {{ .Values.config.observability.tracingExporter | default "otlp" | quote }}
+        sample_rate: {{ .Values.config.observability.tracingSampleRate | default 0.1 }}
+      {{- end }}
+      health:
+        port: {{ .Values.config.observability.healthCheckPort }}
+        liveness_path: {{ .Values.config.observability.healthLivenessPath | default "/health/live" | quote }}
+        readiness_path: {{ .Values.config.observability.healthReadinessPath | default "/health/ready" | quote }}
+
+    kafka:
+      bootstrap_servers:
+        {{- if kindIs "string" .Values.config.kafka.bootstrapServers }}
+        - {{ .Values.config.kafka.bootstrapServers | quote }}
+        {{- else }}
+        {{- range .Values.config.kafka.bootstrapServers }}
+        - {{ . | quote }}
+        {{- end }}
+        {{- end }}
+      security_protocol: {{ .Values.config.kafka.securityProtocol | quote }}
+      {{- if ne .Values.config.kafka.securityProtocol "PLAINTEXT" }}
+      sasl_mechanism: {{ .Values.config.kafka.saslMechanism | quote }}
+      sasl_username: "${KAFKA_USERNAME}"
+      sasl_password: "${KAFKA_PASSWORD}"
+      {{- end }}
+      
+      consumer:
+        group_id: {{ .Values.config.kafka.consumerGroupId | quote }}
+        topics:
+          {{- range .Values.config.kafka.topics }}
+          - {{ . | quote }}
+          {{- end }}
+        auto_offset_reset: {{ .Values.config.kafka.autoOffsetReset | quote }}
+        enable_auto_commit: {{ .Values.config.kafka.enableAutoCommit }}
+        max_poll_records: {{ .Values.config.kafka.maxPollRecords }}
+        max_poll_interval_ms: {{ .Values.config.kafka.maxPollIntervalMs }}
+        session_timeout_ms: {{ .Values.config.kafka.sessionTimeoutMs }}
+        heartbeat_interval_ms: {{ .Values.config.kafka.heartbeatIntervalMs }}
+      
+      dlq:
+        enabled: {{ .Values.config.kafka.dlq.enabled }}
+        topic_suffix: {{ .Values.config.kafka.dlq.topicSuffix | quote }}
+        max_retries: {{ .Values.config.kafka.dlq.maxRetries }}
+
+    storage:
+      backend: {{ .Values.config.storage.backend | quote }}
+      format: {{ .Values.config.storage.format | quote }}
+      compression: {{ .Values.config.storage.compression | quote }}
+      
+      {{- if eq .Values.config.storage.backend "s3" }}
+      s3:
+        bucket: {{ .Values.config.storage.s3.bucket | quote }}
+        region: {{ .Values.config.storage.s3.region | quote }}
+        base_path: {{ .Values.config.storage.s3.basePath | default "events" | quote }}
+        {{- if .Values.config.storage.s3.endpoint }}
+        endpoint: {{ .Values.config.storage.s3.endpoint | quote }}
+        {{- end }}
+        use_path_style: {{ .Values.config.storage.s3.usePathStyle }}
+        sse_enabled: {{ .Values.config.storage.s3.sseEnabled }}
+        {{- if .Values.config.storage.s3.sseKmsKeyId }}
+        sse_kms_key_id: {{ .Values.config.storage.s3.sseKmsKeyId | quote }}
+        {{- end }}
+      {{- end }}
+      
+      {{- if eq .Values.config.storage.backend "azure" }}
+      azure:
+        account_name: {{ .Values.config.storage.azure.accountName | quote }}
+        container: {{ .Values.config.storage.azure.container | quote }}
+        base_path: {{ .Values.config.storage.azure.basePath | default "events" | quote }}
+        use_managed_identity: {{ .Values.config.storage.azure.useManagedIdentity }}
+      {{- end }}
+      
+      {{- if eq .Values.config.storage.backend "gcs" }}
+      gcs:
+        bucket: {{ .Values.config.storage.gcs.bucket | quote }}
+        {{- if .Values.config.storage.gcs.projectId }}
+        project_id: {{ .Values.config.storage.gcs.projectId | quote }}
+        {{- end }}
+        base_path: {{ .Values.config.storage.gcs.basePath | default "events" | quote }}
+        {{- if .Values.config.storage.gcs.authMethod }}
+        auth_method: {{ .Values.config.storage.gcs.authMethod | quote }}
+        {{- else }}
+        use_default_credential: true
+        {{- end }}
+      {{- end }}
+      
+      {{- if eq .Values.config.storage.backend "file" }}
+      file:
+        base_path: {{ .Values.config.storage.file.basePath | quote }}
+      {{- end }}
+
+    {{- if eq .Values.config.storage.format "avro" }}
+    avro:
+      codec: {{ .Values.config.storage.avro.codec | default "snappy" | quote }}
+      sync_interval: {{ .Values.config.storage.avro.syncInterval | default 16000 }}
+    {{- end }}
+
+    {{- if eq .Values.config.storage.format "parquet" }}
+    parquet:
+      compression: {{ .Values.config.storage.parquet.compression | default "snappy" | quote }}
+      row_group_size_mb: {{ .Values.config.storage.parquet.rowGroupSizeMB | default 100 }}
+      page_size_kb: {{ .Values.config.storage.parquet.pageSizeKB | default 1024 }}
+      enable_statistics: {{ .Values.config.storage.parquet.enableStatistics | default true }}
+      enable_dictionary: {{ .Values.config.storage.parquet.enableDictionary | default true }}
+    {{- end }}
+
+    file_rotation:
+      max_file_size_mb: {{ .Values.config.fileRotation.maxFileSizeMB | default 128 }}
+      max_records_per_file: {{ .Values.config.fileRotation.maxRecordsPerFile | default 100000 }}
+      max_duration_seconds: {{ .Values.config.fileRotation.maxDurationSeconds | default 300 }}
+      strategy: {{ .Values.config.fileRotation.strategy | default "any" | quote }}
+
+    processing:
+      buffer_size_mb: {{ .Values.config.processing.bufferSizeMB | default 64 }}
+      buffer_flush_interval_seconds: {{ .Values.config.processing.bufferFlushIntervalSeconds | default 60 }}
+      max_concurrent_uploads: {{ .Values.config.processing.maxConcurrentUploads | default 5 }}
+      worker_pool_size: {{ .Values.config.processing.workerPoolSize | default 10 }}
+
+    retry:
+      max_attempts: {{ .Values.config.retry.maxAttempts | default 5 }}
+      initial_backoff_ms: {{ .Values.config.retry.initialBackoffMs | default 100 }}
+      max_backoff_ms: {{ .Values.config.retry.maxBackoffMs | default 30000 }}
+      backoff_multiplier: {{ .Values.config.retry.backoffMultiplier | default 2.0 }}
+      enable_jitter: {{ .Values.config.retry.enableJitter | default true }}
+
+    shutdown:
+      grace_period_seconds: {{ .Values.config.shutdown.gracePeriodSeconds | default 30 }}
+      force_timeout_seconds: {{ .Values.config.shutdown.forceTimeoutSeconds | default 60 }}
+{{- end }}

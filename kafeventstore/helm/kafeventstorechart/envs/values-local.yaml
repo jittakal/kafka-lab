@@ -1,0 +1,91 @@
+# Values for local Kubernetes deployment (minikube, kind, k3s)
+# Usage: helm install kafeventstore ./helm/kafeventstore -f ./helm/kafeventstore/envs/values-local.yaml
+
+global:
+  cloudProvider: local
+  environment: dev
+  imagePullSecrets: []
+
+replicaCount: 1
+
+image:
+  repository: kafeventstore
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: "kafka-event-store"
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+
+config:
+  logLevel: debug
+  logFormat: json
+  
+  kafka:
+    bootstrapServers: "kafka-kraft-hs.kafka-lab.svc.cluster.local:9093"
+    securityProtocol: "SASL_SSL"
+    saslMechanism: "PLAIN"
+    consumerGroupId: "kafka-event-store-group"
+    topics:
+      - "library.books.issued"
+      - "library.books.returned"
+    autoOffsetReset: "earliest"
+  
+  storage:
+    backend: "file"
+    format: "avro"
+    compression: "snappy"
+    
+    file:
+      basePath: "/data/events"
+
+secrets:
+  create: true
+  kafka:
+    username: "admin"
+    password: "admin-secret"
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+  mountPath: /data
+
+persistentVolume:
+  enabled: true
+  capacity: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /mnt/data/kafeventstore
+    type: DirectoryOrCreate
+
+service:
+  type: NodePort
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+networkPolicy:
+  enabled: false

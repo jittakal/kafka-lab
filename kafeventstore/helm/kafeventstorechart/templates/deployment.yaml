@@ -1,0 +1,197 @@
+{{- $_ := include "kafeventstore.validateStorage" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kafeventstore.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kafeventstore.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "kafeventstore.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.secrets.create }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "kafeventstore.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kafeventstore.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: {{ include "kafeventstore.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--config=/config/{{ .Values.configMap.fileName }}"
+          env:
+            {{- if or .Values.secrets.create .Values.secrets.kafka.existingSecret }}
+            # Kafka credentials
+            - name: KAFKA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kafeventstore.kafkaSecretName" . }}
+                  key: {{ .Values.secrets.kafka.usernameKey }}
+            - name: KAFKA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kafeventstore.kafkaSecretName" . }}
+                  key: {{ .Values.secrets.kafka.passwordKey }}
+            {{- end }}
+            {{- if and (eq .Values.config.storage.backend "s3") (ne .Values.global.cloudProvider "aws") (or .Values.secrets.create .Values.secrets.aws.existingSecret) }}
+            # AWS credentials (not using IRSA)
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kafeventstore.awsSecretName" . }}
+                  key: {{ .Values.secrets.aws.accessKeyIdKey }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kafeventstore.awsSecretName" . }}
+                  key: {{ .Values.secrets.aws.secretAccessKeyKey }}
+            {{- end }}
+            {{- if and (eq .Values.config.storage.backend "azure") (not .Values.config.storage.azure.useManagedIdentity) (or .Values.secrets.create .Values.secrets.azure.existingSecret) }}
+            # Azure credentials (not using Managed Identity)
+            - name: AZURE_STORAGE_ACCOUNT
+              value: {{ .Values.config.storage.azure.accountName | quote }}
+            - name: AZURE_STORAGE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kafeventstore.azureSecretName" . }}
+                  key: {{ .Values.secrets.azure.storageAccountKeyKey }}
+            {{- end }}
+            {{- if and (eq .Values.config.storage.backend "gcs") (ne .Values.config.storage.gcs.authMethod "adc") (or .Values.secrets.create .Values.secrets.gcs.existingSecret) }}
+            # GCS credentials (not using ADC/Workload Identity)
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /secrets/gcs/{{ .Values.secrets.gcs.serviceAccountJsonKey }}
+            {{- end }}
+            {{- with .Values.env }}
+            # Additional environment variables
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: {{ .Values.service.metricsName }}
+              containerPort: {{ .Values.config.observability.metricsPort }}
+              protocol: TCP
+            - name: {{ .Values.service.healthName }}
+              containerPort: {{ .Values.config.observability.healthCheckPort }}
+              protocol: TCP
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            # Config volume
+            - name: config
+              mountPath: {{ .Values.configMap.mountPath }}
+              readOnly: true
+            {{- if .Values.persistence.enabled }}
+            # Persistence volume (for file storage)
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+              {{- if .Values.persistence.subPath }}
+              subPath: {{ .Values.persistence.subPath }}
+              {{- end }}
+            {{- end }}
+            {{- if and (eq .Values.config.storage.backend "gcs") (ne .Values.config.storage.gcs.authMethod "adc") }}
+            # GCS credentials volume
+            - name: gcs-credentials
+              mountPath: /secrets/gcs
+              readOnly: true
+            {{- end }}
+            
+            # Temp directory (for encoding)
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.volumeMounts }}
+            # Additional volume mounts
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.sidecars }}
+        # Sidecar containers
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      
+      volumes:
+        # Config volume
+        - name: config
+          configMap:
+            name: {{ include "kafeventstore.configMapName" . }}
+        {{- if .Values.persistence.enabled }}
+        # Persistence volume
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "kafeventstore.pvcName" . }}
+        {{- end }}
+        {{- if and (eq .Values.config.storage.backend "gcs") (ne .Values.config.storage.gcs.authMethod "adc") }}
+        # GCS credentials volume
+        - name: gcs-credentials
+          secret:
+            secretName: {{ include "kafeventstore.gcsSecretName" . }}
+        {{- end }}
+        # Temp directory (emptyDir for read-only root filesystem)
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.volumes }}
+        # Additional volumes
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

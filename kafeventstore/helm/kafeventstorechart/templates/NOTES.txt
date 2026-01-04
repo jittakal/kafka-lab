@@ -1,0 +1,67 @@
+1. Get the application URL by running these commands:
+{{- if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "kafeventstore.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "Metrics: http://$NODE_IP:$NODE_PORT/metrics"
+  echo "Health: http://$NODE_IP:$NODE_PORT/health"
+{{- else if contains "LoadBalancer" .Values.service.type }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+  You can watch the status by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "kafeventstore.fullname" . }}'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "kafeventstore.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo "Metrics: http://$SERVICE_IP:{{ .Values.service.metricsPort }}/metrics"
+  echo "Health: http://$SERVICE_IP:{{ .Values.service.healthPort }}/health"
+{{- else if contains "ClusterIP" .Values.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "kafeventstore.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:9090/metrics to access metrics"
+  echo "Visit http://127.0.0.1:8080/health to access health check"
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 9090:{{ .Values.config.observability.metricsPort }} 8080:{{ .Values.config.observability.healthCheckPort }}
+{{- end }}
+
+2. Check deployment status:
+  kubectl get deployment {{ include "kafeventstore.fullname" . }} -n {{ .Release.Namespace }}
+
+3. Check pod logs:
+  kubectl logs -f deployment/{{ include "kafeventstore.fullname" . }} -n {{ .Release.Namespace }}
+
+4. Configuration:
+  - Cloud Provider: {{ .Values.global.cloudProvider }}
+  - Environment: {{ .Values.global.environment }}
+  - Storage Backend: {{ .Values.config.storage.backend }}
+  - Storage Format: {{ .Values.config.storage.format }}
+  - Kafka Topics: {{ .Values.config.kafka.topics | join ", " }}
+  {{- if .Values.autoscaling.enabled }}
+  - HPA Enabled: min={{ .Values.autoscaling.minReplicas }}, max={{ .Values.autoscaling.maxReplicas }}
+  {{- end }}
+
+{{- if eq .Values.global.cloudProvider "local" }}
+5. Local Development Notes:
+  {{- if .Values.persistence.enabled }}
+  - Persistent storage enabled at: {{ .Values.persistence.mountPath }}
+  {{- end }}
+  - Make sure Kafka is accessible at: {{ .Values.config.kafka.bootstrapServers }}
+{{- end }}
+
+{{- if and (eq .Values.config.storage.backend "s3") (eq .Values.global.cloudProvider "aws") }}
+6. AWS Configuration:
+  - Ensure IAM role is properly configured for IRSA
+  - Role ARN should be annotated on ServiceAccount
+  - S3 bucket: {{ .Values.config.storage.s3.bucket }}
+{{- end }}
+
+{{- if and (eq .Values.config.storage.backend "azure") (eq .Values.global.cloudProvider "azure") }}
+6. Azure Configuration:
+  - Ensure Workload Identity is properly configured
+  - Client ID and Tenant ID should be annotated on ServiceAccount
+  - Storage account: {{ .Values.config.storage.azure.accountName }}
+  - Container: {{ .Values.config.storage.azure.container }}
+{{- end }}
+
+{{- if and (eq .Values.config.storage.backend "gcs") (eq .Values.global.cloudProvider "gcp") }}
+6. GCP Configuration:
+  - Ensure Workload Identity is properly configured
+  - GCP service account should be annotated on ServiceAccount
+  - GCS bucket: {{ .Values.config.storage.gcs.bucket }}
+{{- end }}
+
+For more information, visit: https://github.com/jittakal/kafeventstore

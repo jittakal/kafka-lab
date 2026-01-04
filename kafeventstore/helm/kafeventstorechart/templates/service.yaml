@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kafeventstore.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kafeventstore.labels" . | nindent 4 }}
+    {{- with .Values.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.metricsPort }}
+      targetPort: {{ .Values.service.metricsTargetPort }}
+      protocol: TCP
+      name: {{ .Values.service.metricsName }}
+    - port: {{ .Values.service.healthPort }}
+      targetPort: {{ .Values.service.healthTargetPort }}
+      protocol: TCP
+      name: {{ .Values.service.healthName }}
+  selector:
+    {{- include "kafeventstore.selectorLabels" . | nindent 4 }}

@@ -1,0 +1,63 @@
+# Git
+.git
+.gitignore
+.github
+
+# Documentation
+*.md
+docs/
+README.md
+LICENSE
+
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+test-data/
+coverage.txt
+coverage.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+vendor/
+
+# Temporary files
+*.tmp
+*.log
+tmp/
+
+# Python scripts (not needed in container)
+python/
+
+# SQL files (not needed in container)
+sql/
+
+# Scripts (not needed in container)
+scripts/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Development
+Makefile

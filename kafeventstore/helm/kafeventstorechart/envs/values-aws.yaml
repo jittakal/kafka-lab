@@ -1,0 +1,213 @@
+# Values for AWS EKS deployment with S3 storage
+# Usage: helm install kafeventstore ./helm/kafeventstore -f ./helm/kafeventstore/envs/values-aws.yaml
+
+global:
+  cloudProvider: aws
+  environment: production
+  imagePullSecrets: []
+
+replicaCount: 3
+
+image:
+  repository: your-ecr-repo/kafeventstore
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations:
+    # IRSA (IAM Roles for Service Accounts)
+    # Replace with your actual IAM role ARN
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/kafeventstore-role
+
+# The IAM role should have policies attached for:
+# 1. S3 access (GetObject, PutObject, ListBucket)
+# 2. KMS access (if using SSE-KMS)
+# 3. MSK access (if using AWS MSK with IAM authentication)
+
+config:
+  logLevel: info
+  logFormat: json
+  
+  kafka:
+    bootstrapServers: "b-1.your-cluster.kafka.us-east-1.amazonaws.com:9098,b-2.your-cluster.kafka.us-east-1.amazonaws.com:9098"
+    securityProtocol: "SASL_SSL"
+    saslMechanism: "AWS_MSK_IAM"  # or "SCRAM-SHA-512" for SASL/SCRAM
+    consumerGroupId: "kafeventstore-prod"
+    topics:
+      - "events"
+    autoOffsetReset: "latest"
+    maxPollRecords: 500
+    
+    dlq:
+      enabled: true
+      topicSuffix: "-dlq"
+      maxRetries: 3
+  
+  storage:
+    backend: "s3"
+    format: "parquet"
+    compression: "snappy"
+    
+    s3:
+      bucket: "your-events-bucket"
+      region: "us-east-1"
+      endpoint: ""
+      usePathStyle: false
+      sseEnabled: true
+      sseKmsKeyId: "arn:aws:kms:us-east-1:123456789012:key/your-kms-key-id"  # Optional
+
+  buffer:
+    maxSize: 1000
+    maxAge: "60s"
+    maxSizeBytes: 10485760
+
+secrets:
+  # When using IRSA, we don't need to create secrets for AWS credentials
+  create: true
+  kafka:
+    # For AWS MSK with SASL/SCRAM, store credentials in AWS Secrets Manager
+    # and reference them here, or use existingSecret
+    existingSecret: "kafeventstore-kafka-creds"
+    usernameKey: "username"
+    passwordKey: "password"
+
+persistence:
+  enabled: false  # Not needed for S3 backend
+
+service:
+  type: ClusterIP
+  annotations:
+    # For exposing metrics to Prometheus
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  # Custom metric for Kafka consumer lag
+  customMetrics:
+    - type: External
+      external:
+        metric:
+          name: kafka_consumer_lag
+          selector:
+            matchLabels:
+              consumer_group: kafeventstore-prod
+        target:
+          type: AverageValue
+          averageValue: "1000"
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+nodeSelector:
+  node.kubernetes.io/instance-type: t3.large
+  # or specific node groups
+  # eks.amazonaws.com/nodegroup: kafeventstore-nodes
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - kafeventstore
+        topologyKey: topology.kubernetes.io/zone
+    - weight: 90
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - kafeventstore
+        topologyKey: kubernetes.io/hostname
+
+tolerations: []
+
+priorityClassName: "high-priority"
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    release: prometheus-operator
+
+networkPolicy:
+  enabled: true
+  ingress:
+    # Allow Prometheus to scrape metrics
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: monitoring
+      ports:
+      - protocol: TCP
+        port: 9090
+  egress:
+    # Allow connection to Kafka
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 9092
+      - protocol: TCP
+        port: 9093
+      - protocol: TCP
+        port: 9094
+      - protocol: TCP
+        port: 9098  # MSK IAM
+    # Allow DNS
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: UDP
+        port: 53
+    # Allow HTTPS (for AWS services)
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 443

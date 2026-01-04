@@ -1,0 +1,193 @@
+# Values for GCP GKE deployment with Google Cloud Storage
+# Usage: helm install kafeventstore ./helm/kafeventstore -f ./helm/kafeventstore/envs/values-gcp.yaml
+
+global:
+  cloudProvider: gcp
+  environment: production
+  imagePullSecrets: []
+
+replicaCount: 3
+
+image:
+  repository: gcr.io/your-project/kafeventstore
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations:
+    # GCP Workload Identity
+    # Replace with your actual GCP service account
+    iam.gke.io/gcp-service-account: kafeventstore@your-project.iam.gserviceaccount.com
+
+# GCP Workload Identity setup:
+# 1. Create GCP service account
+# 2. Grant Storage Object Admin role to the service account
+# 3. Bind Kubernetes SA to GCP SA:
+#    gcloud iam service-accounts add-iam-policy-binding \
+#      kafeventstore@your-project.iam.gserviceaccount.com \
+#      --role roles/iam.workloadIdentityUser \
+#      --member "serviceAccount:your-project.svc.id.goog[default/kafeventstore]"
+
+config:
+  logLevel: info
+  logFormat: json
+  
+  kafka:
+    bootstrapServers: "kafka-cluster.us-central1.gcp.confluent.cloud:9092"
+    securityProtocol: "SASL_SSL"
+    saslMechanism: "PLAIN"
+    consumerGroupId: "kafeventstore-prod"
+    topics:
+      - "events"
+    autoOffsetReset: "latest"
+    maxPollRecords: 500
+    
+    dlq:
+      enabled: true
+      topicSuffix: "-dlq"
+      maxRetries: 3
+  
+  storage:
+    backend: "gcs"
+    format: "parquet"
+    compression: "snappy"
+    
+    gcs:
+      bucket: "your-events-bucket"
+      projectId: "your-project-id"
+      authMethod: "adc"  # Application Default Credentials (Workload Identity)
+
+  buffer:
+    maxSize: 1000
+    maxAge: "60s"
+    maxSizeBytes: 10485760
+
+secrets:
+  create: true
+  kafka:
+    existingSecret: "kafeventstore-kafka-creds"
+    usernameKey: "username"
+    passwordKey: "password"
+  # No need for GCS service account key when using Workload Identity
+
+persistence:
+  enabled: false  # Not needed for GCS backend
+
+service:
+  type: ClusterIP
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+    # For internal load balancer
+    # cloud.google.com/load-balancer-type: "Internal"
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+nodeSelector:
+  cloud.google.com/gke-nodepool: kafeventstore-pool
+  # or
+  # kubernetes.io/os: linux
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - kafeventstore
+        topologyKey: topology.kubernetes.io/zone
+    - weight: 90
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - kafeventstore
+        topologyKey: kubernetes.io/hostname
+
+tolerations: []
+
+priorityClassName: "high-priority"
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    release: prometheus-operator
+
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: monitoring
+      ports:
+      - protocol: TCP
+        port: 9090
+  egress:
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 9092
+      - protocol: TCP
+        port: 9093
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: UDP
+        port: 53
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 443

@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "kafeventstore.fullname" . }}-test-connection"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kafeventstore.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  {{- with .Values.global.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: wget
+      image: busybox:1.36
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing health endpoint..."
+          wget --spider --timeout=10 {{ include "kafeventstore.fullname" . }}:{{ .Values.service.healthPort }}/health
+          if [ $? -eq 0 ]; then
+            echo "Health check passed ✓"
+          else
+            echo "Health check failed ✗"
+            exit 1
+          fi
+          
+          echo "Testing metrics endpoint..."
+          wget --spider --timeout=10 {{ include "kafeventstore.fullname" . }}:{{ .Values.service.metricsPort }}/metrics
+          if [ $? -eq 0 ]; then
+            echo "Metrics endpoint accessible ✓"
+          else
+            echo "Metrics endpoint not accessible ✗"
+            exit 1
+          fi
+          
+          echo "All tests passed! 🎉"
+  restartPolicy: Never

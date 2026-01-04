@@ -1,0 +1,24 @@
+{{- if .Values.persistentVolume.enabled -}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "kafeventstore.pvName" . }}
+  labels:
+    {{- include "kafeventstore.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistentVolume.capacity | quote }}
+  accessModes:
+    {{- range .Values.persistentVolume.accessModes }}
+    - {{ . | quote }}
+    {{- end }}
+  persistentVolumeReclaimPolicy: {{ .Values.persistentVolume.persistentVolumeReclaimPolicy }}
+  {{- if .Values.persistentVolume.storageClassName }}
+  storageClassName: {{ .Values.persistentVolume.storageClassName | quote }}
+  {{- end }}
+  {{- if .Values.persistentVolume.hostPath }}
+  hostPath:
+    path: {{ .Values.persistentVolume.hostPath.path | quote }}
+    type: {{ .Values.persistentVolume.hostPath.type | default "DirectoryOrCreate" | quote }}
+  {{- end }}
+{{- end }}

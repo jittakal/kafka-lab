@@ -1,0 +1,111 @@
+application:
+  name: "kafka-event-store"
+  version: "1.0.0"
+  environment: "development"
+
+kafka:
+  bootstrap_servers:
+    - "localhost:9092"
+  security_protocol: "SASL_SSL"
+  sasl_mechanism: "PLAIN"
+  sasl_username: "${KAFKA_USERNAME}"
+  sasl_password: "${KAFKA_PASSWORD}"
+  
+  consumer:
+    group_id: "event-store-test"
+    topics:
+      - "test-events"
+    auto_offset_reset: "earliest"
+    enable_auto_commit: false
+    max_poll_records: 1000
+    max_poll_interval_ms: 300000
+    session_timeout_ms: 30000
+    heartbeat_interval_ms: 10000
+    
+  dlq:
+    enabled: true
+    topic_suffix: "-dlq"
+    max_retries: 3
+
+storage:
+  backend: "file"  # s3, azure, file
+  format: "parquet"  # parquet, avro
+  compression: "snappy"  # parquet: snappy/gzip/lz4/zstd, avro: gzip
+  
+  s3:
+    bucket: "events-prod"
+    region: "us-east-1"
+    endpoint: ""
+    use_path_style: false
+    sse_enabled: true
+    sse_kms_key_id: ""
+    
+  azure:
+    account_name: "eventstorageacct"
+    container: "events"
+    use_managed_identity: true
+    
+  file:
+    base_path: "/tmp/events"
+
+file_rotation:
+  max_file_size_mb: 128
+  max_records_per_file: 100000
+  max_duration_seconds: 300
+  strategy: "any"  # any, all
+
+parquet:
+  compression: "snappy"  # none, snappy, gzip, lz4, zstd
+  row_group_size_mb: 100
+  page_size_kb: 1024
+  enable_statistics: true
+  enable_dictionary: true
+
+avro:
+  codec: "snappy"  # null, deflate, snappy, zstandard
+  sync_interval: 16000
+
+processing:
+  buffer_size_mb: 64
+  buffer_flush_interval_seconds: 60
+  max_concurrent_uploads: 5
+  worker_pool_size: 10
+
+retry:
+  enabled: true
+  max_attempts: 3
+  initial_backoff_ms: 100
+  max_backoff_ms: 30000
+  backoff_multiplier: 2.0
+  jitter: true
+  circuit_breaker_enabled: true
+  circuit_breaker_max_failures: 5
+  circuit_breaker_timeout_seconds: 60
+  circuit_breaker_max_requests: 3
+  circuit_breaker_success_threshold: 2
+
+observability:
+  logging:
+    level: "info"  # debug, info, warn, error
+    format: "json"  # json, text
+    output: "stdout"  # stdout, stderr, file
+    
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+    
+  tracing:
+    enabled: false
+    exporter: "otlp"  # otlp, jaeger
+    endpoint: "http://otel-collector:4317"
+    sample_rate: 0.1
+    
+  health:
+    port: 8080
+    liveness_path: "/health/live"
+    readiness_path: "/health/ready"
+
+shutdown:
+  grace_period_seconds: 30
+  force_timeout_seconds: 60

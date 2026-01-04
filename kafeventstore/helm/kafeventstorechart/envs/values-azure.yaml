@@ -1,0 +1,193 @@
+# Values for Azure AKS deployment with Azure Blob Storage
+# Usage: helm install kafeventstore ./helm/kafeventstore -f ./helm/kafeventstore/envs/values-azure.yaml
+
+global:
+  cloudProvider: azure
+  environment: production
+  imagePullSecrets: []
+
+replicaCount: 3
+
+image:
+  repository: youracr.azurecr.io/kafeventstore
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations:
+    # Azure Workload Identity
+    # Replace with your actual values
+    azure.workload.identity/client-id: "00000000-0000-0000-0000-000000000000"
+    azure.workload.identity/tenant-id: "00000000-0000-0000-0000-000000000000"
+    # azure.workload.identity/use: "true"
+
+# Azure Workload Identity setup:
+# 1. Create managed identity in Azure
+# 2. Assign Storage Blob Data Contributor role to the managed identity
+# 3. Create federated credential for the service account
+# 4. Annotate the service account with client-id and tenant-id
+
+podLabels:
+  azure.workload.identity/use: "true"
+
+config:
+  logLevel: info
+  logFormat: json
+  
+  kafka:
+    bootstrapServers: "your-kafka-cluster.eastus.azure.confluent.cloud:9092"
+    securityProtocol: "SASL_SSL"
+    saslMechanism: "PLAIN"
+    consumerGroupId: "kafeventstore-prod"
+    topics:
+      - "events"
+    autoOffsetReset: "latest"
+    maxPollRecords: 500
+    
+    dlq:
+      enabled: true
+      topicSuffix: "-dlq"
+      maxRetries: 3
+  
+  storage:
+    backend: "azure"
+    format: "parquet"
+    compression: "snappy"
+    
+    azure:
+      accountName: "yourstorageaccount"
+      container: "events"
+      useManagedIdentity: true  # Use Workload Identity
+
+  buffer:
+    maxSize: 1000
+    maxAge: "60s"
+    maxSizeBytes: 10485760
+
+secrets:
+  create: true
+  kafka:
+    existingSecret: "kafeventstore-kafka-creds"
+    usernameKey: "username"
+    passwordKey: "password"
+  # No need for Azure storage account key when using Managed Identity
+
+persistence:
+  enabled: false  # Not needed for Azure Blob backend
+
+service:
+  type: ClusterIP
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+nodeSelector:
+  agentpool: kafeventstore
+  # or
+  # kubernetes.io/os: linux
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - kafeventstore
+        topologyKey: topology.kubernetes.io/zone
+    - weight: 90
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - kafeventstore
+        topologyKey: kubernetes.io/hostname
+
+tolerations: []
+
+priorityClassName: "high-priority"
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    release: prometheus-operator
+
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: monitoring
+      ports:
+      - protocol: TCP
+        port: 9090
+  egress:
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 9092
+      - protocol: TCP
+        port: 9093
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: UDP
+        port: 53
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 443

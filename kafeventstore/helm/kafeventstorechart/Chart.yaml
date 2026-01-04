@@ -1,0 +1,52 @@
+apiVersion: v2
+name: kafeventstorechart
+description: |
+  A Helm chart for deploying Kafka Event Blob Store - a high-performance Kafka consumer
+  that persists CloudEvents to blob storage (AWS S3, Azure Blob, GCS) in Parquet/Avro formats.
+  
+  Features:
+  - Multi-cloud storage support (AWS S3, Azure Blob Storage, Google Cloud Storage)
+  - Multiple data formats (Parquet, Avro) with compression
+  - At-least-once delivery with DLQ support
+  - Horizontal Pod Autoscaling
+  - Full observability (metrics, logging, health checks)
+
+type: application
+
+# This is the chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+# Versions are expected to follow Semantic Versioning (https://semver.org/)
+version: 1.0.0
+
+# This is the version number of the application being deployed.
+appVersion: "1.0.0"
+
+# Keywords for easier discovery
+keywords:
+  - kafka
+  - events
+  - storage
+  - s3
+  - azure
+  - gcs
+  - parquet
+  - avro
+  - cloudevents
+
+# Maintainers
+maintainers:
+  - name: jittakal
+    email: jitendra.takalkar@gmail.com
+
+# Dependencies (if any)
+# dependencies: []
+
+# Icon (optional - provide URL to icon)
+# icon: https://example.com/icon.png
+
+# Home page
+# home: https://github.com/jittakal/kafka-lab/kafeventstore
+
+# Sources
+sources:
+  - https://github.com/jittakal/kafka-lab/kafeventstore

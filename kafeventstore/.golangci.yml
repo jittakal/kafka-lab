@@ -1,0 +1,89 @@
+# golangci-lint configuration
+#
+# IMPORTANT: This project uses Go 1.24.11, but golangci-lint v1.55.2 was built with Go 1.21
+# and doesn't fully support Go 1.24. To fix the "undefined: goavro" and "internal/goarch" errors:
+#
+# Option 1 (Recommended): Upgrade golangci-lint to v1.61.0 or later
+#   winget install golangci.golangci-lint
+#   OR download from: https://github.com/golangci/golangci-lint/releases
+#
+# Option 2: Use go vet instead for type checking
+#   go vet ./...
+#
+# Option 3: Temporarily downgrade Go to 1.23 (not recommended)
+#
+# The code compiles successfully with 'go build' and 'go test' - the golangci-lint errors
+# are false positives due to version incompatibility.
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+  gocyclo:
+    min-complexity: 15
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    # staticcheck disabled due to Go 1.24 compatibility issues
+    # typecheck disabled due to Go 1.24 compatibility issues
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+    - goconst
+    - gocyclo
+    - dupl
+
+issues:
+  # Disable the default exclude patterns
+  exclude-use-default: false
+  
+  # Maximum issues count per one linter
+  max-issues-per-linter: 0
+  
+  # Maximum count of issues with the same text
+  max-same-issues: 0
+  
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+
+run:
+  timeout: 5m
+  tests: true
+  
+  # Use Go version from go.mod
+  go: '1.24'
+  
+  # Skip directories
+  skip-dirs:
+    - vendor
+    - bin
+    - test-data
+  
+  # Skip files
+  skip-files:
+    - ".*\\.pb\\.go$"
+  
+  # Module download mode
+  modules-download-mode: readonly
+  
+  # Allow parallel runners
+  allow-parallel-runners: true
